@@ -59,8 +59,8 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.xerial:sqlite-jdbc:3.43.0.0")
-    testImplementation("org.mockito:mockito-core:5.14.2")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.14.2")
+    testImplementation("org.mockito:mockito-core:5.23.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
     testImplementation("io.papermc.paper:paper-api:26.2.build.+")
 }
 

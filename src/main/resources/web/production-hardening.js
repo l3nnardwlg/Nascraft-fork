@@ -4,6 +4,114 @@
     let tradeRequestInFlight = false;
     const nativeFetch = window.fetch.bind(window);
 
+    let itemPriceChart = null;
+    const chartRanges = [
+        { key: '1m', label: '1M', seconds: 60 },
+        { key: '5m', label: '5M', seconds: 5 * 60 },
+        { key: '30m', label: '30M', seconds: 30 * 60 },
+        { key: '1h', label: '1H', seconds: 60 * 60 },
+        { key: '12h', label: '12H', seconds: 12 * 60 * 60 },
+        { key: '1d', label: '1D', seconds: 24 * 60 * 60 },
+        { key: '7d', label: '7D', seconds: 7 * 24 * 60 * 60 },
+        { key: 'all', label: 'ALL', seconds: null }
+    ];
+    let activeChartRange = sessionStorage.getItem('nascraft-chart-range') || 'all';
+    if (!chartRanges.some(range => range.key === activeChartRange)) activeChartRange = 'all';
+
+    function hookLightweightChart() {
+        if (!window.LightweightCharts || typeof window.LightweightCharts.createChart !== 'function') return;
+        if (window.LightweightCharts.__nascraftRangeHooked) return;
+
+        const originalCreateChart = window.LightweightCharts.createChart.bind(window.LightweightCharts);
+        window.LightweightCharts.createChart = function(container, options) {
+            const chart = originalCreateChart(container, options);
+            if (container?.id === 'item-price-chart-container') {
+                itemPriceChart = chart;
+
+                // Prices in Nascraft change discretely. A stepped line avoids the
+                // misleading diagonal interpolation between sparse historical points.
+                if (typeof chart.addBaselineSeries === 'function') {
+                    const originalAddBaselineSeries = chart.addBaselineSeries.bind(chart);
+                    chart.addBaselineSeries = function(seriesOptions = {}) {
+                        const withSteps = window.LightweightCharts.LineType?.WithSteps;
+                        return originalAddBaselineSeries(withSteps === undefined
+                            ? seriesOptions
+                            : { ...seriesOptions, lineType: withSteps });
+                    };
+                }
+            }
+            return chart;
+        };
+        window.LightweightCharts.__nascraftRangeHooked = true;
+    }
+
+    hookLightweightChart();
+
+    function applyChartRange() {
+        if (!itemPriceChart) return;
+        const timeScale = itemPriceChart.timeScale();
+        if (!timeScale) return;
+
+        const range = chartRanges.find(entry => entry.key === activeChartRange) || chartRanges.at(-1);
+        if (!range.seconds) {
+            timeScale.fitContent();
+            return;
+        }
+
+        const to = Math.floor(Date.now() / 1000);
+        try {
+            timeScale.setVisibleRange({ from: to - range.seconds, to });
+        } catch (error) {
+            console.debug('[Nascraft] Could not apply chart range yet:', error);
+        }
+    }
+
+    function refreshChartRangeButtons() {
+        document.querySelectorAll('[data-nascraft-chart-range]').forEach(button => {
+            const active = button.dataset.nascraftChartRange === activeChartRange;
+            button.classList.toggle('bg-emerald-600', active);
+            button.classList.toggle('text-white', active);
+            button.classList.toggle('bg-gray-700', !active);
+            button.classList.toggle('text-gray-300', !active);
+        });
+    }
+
+    function addChartRangeControls() {
+        const chartContainer = document.getElementById('item-price-chart-container');
+        if (!chartContainer || document.getElementById('nascraft-chart-ranges')) return;
+
+        const controls = document.createElement('div');
+        controls.id = 'nascraft-chart-ranges';
+        controls.className = 'flex flex-wrap items-center gap-1 mb-2';
+        controls.setAttribute('aria-label', 'Chart timeframe');
+
+        for (const range of chartRanges) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.nascraftChartRange = range.key;
+            button.textContent = range.label;
+            button.className = 'px-2 py-1 rounded text-xs font-semibold transition hover:bg-gray-600';
+            button.title = range.seconds ? `Show the last ${range.label}` : 'Show all available price history';
+            button.addEventListener('click', () => {
+                activeChartRange = range.key;
+                sessionStorage.setItem('nascraft-chart-range', activeChartRange);
+                refreshChartRangeButtons();
+                applyChartRange();
+            });
+            controls.appendChild(button);
+        }
+
+        chartContainer.parentElement?.insertBefore(controls, chartContainer);
+        refreshChartRangeButtons();
+        setTimeout(applyChartRange, 250);
+    }
+
+    // The original chart calls fitContent() after loading a new item. Re-apply a
+    // selected short range afterwards so switching assets keeps the chosen view.
+    setInterval(() => {
+        if (activeChartRange !== 'all') applyChartRange();
+    }, 1500);
+
     function randomRequestId() {
         if (window.crypto?.randomUUID) return window.crypto.randomUUID();
         const bytes = new Uint8Array(16);
@@ -145,5 +253,8 @@
     const observer = new MutationObserver(() => addMaxButton());
     const modalBody = document.getElementById('modal-body');
     if (modalBody) observer.observe(modalBody, { childList: true, subtree: true });
-    document.addEventListener('DOMContentLoaded', addMaxButton);
+    document.addEventListener('DOMContentLoaded', () => {
+        addMaxButton();
+        addChartRangeControls();
+    });
 })();

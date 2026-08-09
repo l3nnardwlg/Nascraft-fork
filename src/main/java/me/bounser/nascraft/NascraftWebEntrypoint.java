@@ -17,7 +17,7 @@ import java.util.logging.Level;
  */
 public class NascraftWebEntrypoint extends Nascraft {
 
-    private static final String WEB_BUNDLE_VERSION = "1.9.6-production-hardening";
+    private static final String WEB_BUNDLE_VERSION = "1.9.7-chart-history";
     private static final List<String> WEB_RESOURCES = List.of(
             "web/index.html",
             "web/style.css",

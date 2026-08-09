@@ -24,7 +24,8 @@ public class CategoryEditorListener implements Listener {
     @EventHandler
     public void onClickInventory(InventoryClickEvent event) {
 
-        if (!event.getWhoClicked().hasPermission("nascraft.admin")) return;
+        if (!event.getWhoClicked().hasPermission("nascraft.admin")
+                && !event.getWhoClicked().hasPermission("nascraft.market.admin")) return;
 
         if (event.getView().getTopInventory().getSize() != 27 || !event.getView().getTitle().equals("§8§lEdit Category") || event.getCurrentItem() == null) return;
 

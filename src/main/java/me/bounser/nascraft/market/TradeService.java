@@ -17,10 +17,13 @@ import org.bukkit.OfflinePlayer;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TradeService {
 
-    private static final Object lock = new Object();
+    private static final long DUPLICATE_WINDOW_MS = 1_500L;
+    private static final ConcurrentHashMap<UUID, Object> PLAYER_LOCKS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> RECENT_TRADES = new ConcurrentHashMap<>();
 
     public enum TradeError {
         MARKET_CLOSED,
@@ -31,6 +34,7 @@ public class TradeService {
         PORTFOLIO_FULL,
         CURRENCY_UNAVAILABLE,
         PRICE_LIMIT_REACHED,
+        DUPLICATE_REQUEST,
         TRADE_FAILED
     }
 
@@ -47,87 +51,28 @@ public class TradeService {
     }
 
     public static CompletableFuture<TradeResult> buyToPortfolio(UUID uuid, Item item, int amount) {
+        return execute(uuid, item, amount, true);
+    }
+
+    public static CompletableFuture<TradeResult> sellFromPortfolio(UUID uuid, Item item, int amount) {
+        return execute(uuid, item, amount, false);
+    }
+
+    private static CompletableFuture<TradeResult> execute(UUID uuid, Item item, int amount, boolean buy) {
         CompletableFuture<TradeResult> future = new CompletableFuture<>();
-        
+
         FoliaScheduler.runGlobal(Nascraft.getInstance(), () -> {
-            synchronized (lock) {
+            Object playerLock = PLAYER_LOCKS.computeIfAbsent(uuid, ignored -> new Object());
+            synchronized (playerLock) {
                 try {
-                    if (item == null) {
-                        future.complete(new TradeResult(false, TradeError.ITEM_NOT_FOUND, 0));
-                        return;
-                    }
-
-                    if (amount <= 0) {
-                        future.complete(new TradeResult(false, TradeError.INVALID_AMOUNT, 0));
-                        return;
-                    }
-
-                    if (!MarketManager.getInstance().getActive()) {
-                        future.complete(new TradeResult(false, TradeError.MARKET_CLOSED, 0));
-                        return;
-                    }
-
-                    boolean limitReached = !item.getPrice().canStockChange(amount, true);
-                    if (limitReached && item.isPriceRestricted()) {
-                        future.complete(new TradeResult(false, TradeError.PRICE_LIMIT_REACHED, 0));
-                        return;
-                    }
-
-                    double worth = item.buyPrice(amount);
-                    Currency currency = item.getCurrency();
-
-                    if (!MoneyManager.getInstance().isCurrencyAvailable(currency)) {
-                        future.complete(new TradeResult(false, TradeError.CURRENCY_UNAVAILABLE, 0));
-                        return;
-                    }
-
-                    OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
-                    if (!MoneyManager.getInstance().hasEnoughMoney(offlinePlayer, currency, worth)) {
-                        future.complete(new TradeResult(false, TradeError.NOT_ENOUGH_MONEY, 0));
-                        return;
-                    }
-
-                    Portfolio portfolio = PortfoliosManager.getInstance().getPortfolio(uuid);
-                    if (!portfolio.hasSpace(item, amount)) {
-                        future.complete(new TradeResult(false, TradeError.PORTFOLIO_FULL, 0));
-                        return;
-                    }
-
-                    // Withdraw money
-                    MoneyManager.getInstance().withdraw(offlinePlayer, currency, worth, (1 - item.getPrice().getBuyTaxMultiplier()));
-
-                    // Add items to portfolio
-                    portfolio.addItem(item, amount);
-
-                    // Update market stock
-                    if (!limitReached) {
-                        if (item.getParent() != null) {
-                            item.getParent().updateInternalValues(amount,
-                                    amount * item.getPrice().getValue(),
-                                    -amount * item.getMultiplier(),
-                                    item.getPrice().getValue() * (1 - item.getPrice().getBuyTaxMultiplier()) * amount * item.getMultiplier());
-                        } else {
-                            item.updateInternalValues(amount,
-                                    amount * item.getPrice().getValue(),
-                                    -amount * item.getMultiplier(),
-                                    item.getPrice().getValue() * (1 - item.getPrice().getBuyTaxMultiplier()) * amount * item.getMultiplier());
-                        }
-                    }
-
-                    // Save trade to database
-                    Trade trade = new Trade(item, LocalDateTime.now(), worth, amount, true, false, uuid);
-                    DatabaseManager.get().getDatabase().saveTrade(trade);
-
-                    if (Config.getInstance().getDiscordEnabled() && Config.getInstance().getLogChannelEnabled()) {
-                        DiscordLog.getInstance().sendTradeLog(trade);
-                    }
-
-                    MarketManager.getInstance().addOperation();
-
-                    future.complete(new TradeResult(true, null, worth));
-
+                    TradeResult result = buy
+                            ? executeBuy(uuid, item, amount)
+                            : executeSell(uuid, item, amount);
+                    future.complete(result);
                 } catch (Exception e) {
-                    Nascraft.getInstance().getLogger().severe("Error executing buy transaction: " + e.getMessage());
+                    Nascraft.getInstance().getLogger().severe(
+                            "Error executing " + (buy ? "buy" : "sell") + " transaction: " + e.getMessage()
+                    );
                     future.complete(new TradeResult(false, TradeError.TRADE_FAILED, 0));
                 }
             }
@@ -136,88 +81,124 @@ public class TradeService {
         return future;
     }
 
-    public static CompletableFuture<TradeResult> sellFromPortfolio(UUID uuid, Item item, int amount) {
-        CompletableFuture<TradeResult> future = new CompletableFuture<>();
+    private static TradeResult executeBuy(UUID uuid, Item item, int amount) {
+        TradeResult validation = validateCommon(uuid, item, amount, true);
+        if (validation != null) return validation;
 
-        FoliaScheduler.runGlobal(Nascraft.getInstance(), () -> {
-            synchronized (lock) {
-                try {
-                    if (item == null) {
-                        future.complete(new TradeResult(false, TradeError.ITEM_NOT_FOUND, 0));
-                        return;
-                    }
+        String fingerprint = fingerprint(uuid, item, amount, true);
+        if (isDuplicate(fingerprint)) return new TradeResult(false, TradeError.DUPLICATE_REQUEST, 0);
 
-                    if (amount <= 0) {
-                        future.complete(new TradeResult(false, TradeError.INVALID_AMOUNT, 0));
-                        return;
-                    }
+        boolean limitReached = !item.getPrice().canStockChange(amount, true);
+        double worth = item.buyPrice(amount);
+        Currency currency = item.getCurrency();
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
 
-                    Portfolio portfolio = PortfoliosManager.getInstance().getPortfolio(uuid);
-                    if (!portfolio.hasItem(item, amount)) {
-                        future.complete(new TradeResult(false, TradeError.NOT_ENOUGH_PORTFOLIO_ITEMS, 0));
-                        return;
-                    }
+        if (!MoneyManager.getInstance().isCurrencyAvailable(currency)) {
+            return new TradeResult(false, TradeError.CURRENCY_UNAVAILABLE, 0);
+        }
+        if (!MoneyManager.getInstance().hasEnoughMoney(offlinePlayer, currency, worth)) {
+            return new TradeResult(false, TradeError.NOT_ENOUGH_MONEY, 0);
+        }
 
-                    if (!MarketManager.getInstance().getActive()) {
-                        future.complete(new TradeResult(false, TradeError.MARKET_CLOSED, 0));
-                        return;
-                    }
+        Portfolio portfolio = PortfoliosManager.getInstance().getPortfolio(uuid);
+        if (!portfolio.hasSpace(item, amount)) {
+            return new TradeResult(false, TradeError.PORTFOLIO_FULL, 0);
+        }
 
-                    boolean limitReached = !item.getPrice().canStockChange(amount, false);
-                    if (limitReached && item.isPriceRestricted()) {
-                        future.complete(new TradeResult(false, TradeError.PRICE_LIMIT_REACHED, 0));
-                        return;
-                    }
+        MoneyManager.getInstance().withdraw(
+                offlinePlayer,
+                currency,
+                worth,
+                (1 - item.getPrice().getBuyTaxMultiplier())
+        );
 
-                    double worth = item.sellPrice(amount);
-                    Currency currency = item.getCurrency();
+        portfolio.addItem(item, amount);
+        updateMarket(item, amount, true, limitReached);
+        saveTrade(uuid, item, amount, worth, true);
+        markCompleted(fingerprint);
+        return new TradeResult(true, null, worth);
+    }
 
-                    if (!MoneyManager.getInstance().isCurrencyAvailable(currency)) {
-                        future.complete(new TradeResult(false, TradeError.CURRENCY_UNAVAILABLE, 0));
-                        return;
-                    }
+    private static TradeResult executeSell(UUID uuid, Item item, int amount) {
+        TradeResult validation = validateCommon(uuid, item, amount, false);
+        if (validation != null) return validation;
 
-                    // Remove items from portfolio
-                    portfolio.removeItem(item, amount);
+        String fingerprint = fingerprint(uuid, item, amount, false);
+        if (isDuplicate(fingerprint)) return new TradeResult(false, TradeError.DUPLICATE_REQUEST, 0);
 
-                    // Deposit money
-                    OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
-                    MoneyManager.getInstance().deposit(offlinePlayer, currency, worth, item.getPrice().getSellTaxMultiplier());
+        Portfolio portfolio = PortfoliosManager.getInstance().getPortfolio(uuid);
+        if (!portfolio.hasItem(item, amount)) {
+            return new TradeResult(false, TradeError.NOT_ENOUGH_PORTFOLIO_ITEMS, 0);
+        }
 
-                    // Update market stock
-                    if (!limitReached) {
-                        if (item.getParent() != null) {
-                            item.getParent().updateInternalValues(amount,
-                                    amount * item.getPrice().getValue(),
-                                    amount * item.getMultiplier(),
-                                    item.getPrice().getValue() * (1 - item.getPrice().getBuyTaxMultiplier()) * amount * item.getMultiplier());
-                        } else {
-                            item.updateInternalValues(amount,
-                                    amount * item.getPrice().getValue(),
-                                    amount * item.getMultiplier(),
-                                    item.getPrice().getValue() * (1 - item.getPrice().getBuyTaxMultiplier()) * amount * item.getMultiplier());
-                        }
-                    }
+        boolean limitReached = !item.getPrice().canStockChange(amount, false);
+        double worth = item.sellPrice(amount);
+        Currency currency = item.getCurrency();
 
-                    // Save trade to database
-                    Trade trade = new Trade(item, LocalDateTime.now(), worth, amount, false, false, uuid);
-                    DatabaseManager.get().getDatabase().saveTrade(trade);
+        if (!MoneyManager.getInstance().isCurrencyAvailable(currency)) {
+            return new TradeResult(false, TradeError.CURRENCY_UNAVAILABLE, 0);
+        }
 
-                    if (Config.getInstance().getDiscordEnabled() && Config.getInstance().getLogChannelEnabled()) {
-                        DiscordLog.getInstance().sendTradeLog(trade);
-                    }
+        portfolio.removeItem(item, amount);
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+        MoneyManager.getInstance().deposit(offlinePlayer, currency, worth, item.getPrice().getSellTaxMultiplier());
+        updateMarket(item, amount, false, limitReached);
+        saveTrade(uuid, item, amount, worth, false);
+        markCompleted(fingerprint);
+        return new TradeResult(true, null, worth);
+    }
 
-                    MarketManager.getInstance().addOperation();
+    private static TradeResult validateCommon(UUID uuid, Item item, int amount, boolean buy) {
+        if (uuid == null || item == null) return new TradeResult(false, TradeError.ITEM_NOT_FOUND, 0);
+        if (amount <= 0) return new TradeResult(false, TradeError.INVALID_AMOUNT, 0);
+        if (!MarketManager.getInstance().getActive()) return new TradeResult(false, TradeError.MARKET_CLOSED, 0);
 
-                    future.complete(new TradeResult(true, null, worth));
+        boolean limitReached = !item.getPrice().canStockChange(amount, buy);
+        if (limitReached && item.isPriceRestricted()) {
+            return new TradeResult(false, TradeError.PRICE_LIMIT_REACHED, 0);
+        }
+        return null;
+    }
 
-                } catch (Exception e) {
-                    Nascraft.getInstance().getLogger().severe("Error executing sell transaction: " + e.getMessage());
-                    future.complete(new TradeResult(false, TradeError.TRADE_FAILED, 0));
-                }
-            }
-        });
+    private static void updateMarket(Item item, int amount, boolean buy, boolean limitReached) {
+        if (limitReached) return;
 
-        return future;
+        double direction = buy ? -1.0 : 1.0;
+        Item target = item.getParent() != null ? item.getParent() : item;
+        target.updateInternalValues(
+                amount,
+                amount * item.getPrice().getValue(),
+                direction * amount * item.getMultiplier(),
+                item.getPrice().getValue()
+                        * (1 - item.getPrice().getBuyTaxMultiplier())
+                        * amount
+                        * item.getMultiplier()
+        );
+    }
+
+    private static void saveTrade(UUID uuid, Item item, int amount, double worth, boolean buy) {
+        Trade trade = new Trade(item, LocalDateTime.now(), worth, amount, buy, false, uuid);
+        DatabaseManager.get().getDatabase().saveTrade(trade);
+
+        if (Config.getInstance().getDiscordEnabled() && Config.getInstance().getLogChannelEnabled()) {
+            DiscordLog.getInstance().sendTradeLog(trade);
+        }
+
+        MarketManager.getInstance().addOperation();
+    }
+
+    private static String fingerprint(UUID uuid, Item item, int amount, boolean buy) {
+        return uuid + ":" + (buy ? "BUY" : "SELL") + ":" + item.getIdentifier() + ":" + amount;
+    }
+
+    private static boolean isDuplicate(String fingerprint) {
+        long now = System.currentTimeMillis();
+        RECENT_TRADES.entrySet().removeIf(entry -> now - entry.getValue() > DUPLICATE_WINDOW_MS * 4);
+        Long previous = RECENT_TRADES.get(fingerprint);
+        return previous != null && now - previous < DUPLICATE_WINDOW_MS;
+    }
+
+    private static void markCompleted(String fingerprint) {
+        RECENT_TRADES.put(fingerprint, System.currentTimeMillis());
     }
 }

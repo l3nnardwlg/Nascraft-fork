@@ -143,6 +143,7 @@ tasks {
         relocate("net.wesjd.anvilgui", "me.bounser.anvilgui")
         relocate("de.tr7zw.changeme.nbtapi", "me.bounser.nbtapi")
         relocate("io.javalin", "me.bounser.web.libs.javalin")
+        relocate("com.fasterxml.jackson", "me.bounser.web.libs.jackson")
     }
 
     test {

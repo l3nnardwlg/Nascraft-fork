@@ -290,6 +290,19 @@ website:
     # their IP changes (mobile networks, dynamic ISPs).
     bind-ip: false
 
+# Web authentication features (Nascraft 1.9.5)
+auth:
+  # Enable authenticated features (linking, portfolio, web trading)
+  enabled: true
+  # Expiration for the 6-digit in-game login code (in seconds)
+  code-expiration-seconds: 300
+  # Session lifetime (in days)
+  session-expiration-days: 7
+
+security:
+  # Rate limiting: max code verification attempts or requests per minute per IP
+  max-code-attempts-per-minute: 5
+
 # Use with caution.
 discord-bot:
   enabled: false

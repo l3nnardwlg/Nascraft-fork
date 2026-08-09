@@ -430,4 +430,59 @@ public class Redis implements Database {
     public String getNicknameFromUserId(String userid) {
         return "";
     }
+
+    @Override
+    public void saveWebSession(String sessionHash, UUID playerUuid, LocalDateTime createdAt, LocalDateTime lastActivity, LocalDateTime expiresAt) {
+        String key = "web_session:" + sessionHash;
+        jedis.hset(key, "player_uuid", playerUuid.toString());
+        jedis.hset(key, "created_at", createdAt.toString());
+        jedis.hset(key, "last_activity", lastActivity.toString());
+        jedis.hset(key, "expires_at", expiresAt.toString());
+        long diffSeconds = java.time.Duration.between(LocalDateTime.now(), expiresAt).getSeconds();
+        if (diffSeconds > 0) {
+            jedis.expire(key, diffSeconds);
+        }
+    }
+
+    @Override
+    public void updateWebSessionActivity(String sessionHash, LocalDateTime lastActivity) {
+        String key = "web_session:" + sessionHash;
+        if (jedis.exists(key)) {
+            jedis.hset(key, "last_activity", lastActivity.toString());
+        }
+    }
+
+    @Override
+    public void deleteWebSession(String sessionHash) {
+        jedis.del("web_session:" + sessionHash);
+    }
+
+    @Override
+    public UUID getWebSessionPlayerUUID(String sessionHash) {
+        String key = "web_session:" + sessionHash;
+        String val = jedis.hget(key, "player_uuid");
+        return val == null ? null : UUID.fromString(val);
+    }
+
+    @Override
+    public boolean hasWebSession(String sessionHash) {
+        return jedis.exists("web_session:" + sessionHash);
+    }
+
+    @Override
+    public void purgeExpiredWebSessions() {
+        Set<String> keys = jedis.keys("web_session:*");
+        LocalDateTime now = LocalDateTime.now();
+        for (String key : keys) {
+            String expStr = jedis.hget(key, "expires_at");
+            if (expStr != null) {
+                try {
+                    LocalDateTime exp = LocalDateTime.parse(expStr);
+                    if (now.isAfter(exp)) {
+                        jedis.del(key);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+    }
 }

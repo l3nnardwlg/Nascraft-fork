@@ -190,6 +190,13 @@ public class SqliteDatabase extends BaseDatabase {
                 "userid VARCHAR(18) PRIMARY KEY, " +
                 "uuid VARCHAR(36) NOT NULL, " +
                 "nickname TEXT NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS web_sessions (" +
+                "session_hash VARCHAR(64) PRIMARY KEY, " +
+                "player_uuid VARCHAR(36) NOT NULL, " +
+                "created_at TEXT NOT NULL, " +
+                "last_activity TEXT NOT NULL, " +
+                "expires_at TEXT NOT NULL)");
     }
 
     private void addMissingIndexes(Connection connection) {

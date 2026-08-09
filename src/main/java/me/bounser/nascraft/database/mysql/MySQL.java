@@ -185,5 +185,12 @@ public class MySQL extends BaseDatabase {
                 "userid VARCHAR(32) PRIMARY KEY, " +
                 "uuid VARCHAR(36) NOT NULL, " +
                 "nickname VARCHAR(255) NOT NULL" + OPTS);
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS web_sessions (" +
+                "session_hash VARCHAR(64) PRIMARY KEY, " +
+                "player_uuid VARCHAR(36) NOT NULL, " +
+                "created_at VARCHAR(40) NOT NULL, " +
+                "last_activity VARCHAR(40) NOT NULL, " +
+                "expires_at VARCHAR(40) NOT NULL" + OPTS);
     }
 }

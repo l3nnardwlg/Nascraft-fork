@@ -121,4 +121,10 @@ public interface Database {
     UUID getUUIDFromUserid(String userid);
     String getNicknameFromUserId(String userid);
 
+    void saveWebSession(String sessionHash, java.util.UUID playerUuid, java.time.LocalDateTime createdAt, java.time.LocalDateTime lastActivity, java.time.LocalDateTime expiresAt);
+    void updateWebSessionActivity(String sessionHash, java.time.LocalDateTime lastActivity);
+    void deleteWebSession(String sessionHash);
+    java.util.UUID getWebSessionPlayerUUID(String sessionHash);
+    boolean hasWebSession(String sessionHash);
+    void purgeExpiredWebSessions();
 }

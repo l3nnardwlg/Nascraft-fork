@@ -625,4 +625,39 @@ public abstract class BaseDatabase implements Database {
     public String getNicknameFromUserId(String userid) {
         return queryConnection(c -> Discord.getNicknameFromUserId(c, userid));
     }
+
+    // ------------------------------------------------------------------
+    // Web Sessions (Nascraft 1.9.5)
+    // ------------------------------------------------------------------
+
+    @Override
+    public void saveWebSession(String sessionHash, UUID playerUuid, LocalDateTime createdAt, LocalDateTime lastActivity, LocalDateTime expiresAt) {
+        withConnection(c -> WebSessions.saveWebSession(c, sessionHash, playerUuid, createdAt, lastActivity, expiresAt));
+    }
+
+    @Override
+    public void updateWebSessionActivity(String sessionHash, LocalDateTime lastActivity) {
+        withConnection(c -> WebSessions.updateWebSessionActivity(c, sessionHash, lastActivity));
+    }
+
+    @Override
+    public void deleteWebSession(String sessionHash) {
+        withConnection(c -> WebSessions.deleteWebSession(c, sessionHash));
+    }
+
+    @Override
+    public UUID getWebSessionPlayerUUID(String sessionHash) {
+        return queryConnection(c -> WebSessions.getWebSessionPlayerUUID(c, sessionHash));
+    }
+
+    @Override
+    public boolean hasWebSession(String sessionHash) {
+        Boolean res = queryConnection(c -> WebSessions.hasWebSession(c, sessionHash));
+        return res != null && res;
+    }
+
+    @Override
+    public void purgeExpiredWebSessions() {
+        withConnection(WebSessions::purgeExpiredWebSessions);
+    }
 }

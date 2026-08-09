@@ -429,7 +429,7 @@ public class Item {
         MarketManager.getInstance().addOperation();
     }
 
-    private void updateInternalValues(int operations, double volume, float stockChange, double taxes) {
+    public void updateInternalValues(int operations, double volume, float stockChange, double taxes) {
         this.operations += operations;
         this.volume += volume;
         this.price.changeStock(stockChange);

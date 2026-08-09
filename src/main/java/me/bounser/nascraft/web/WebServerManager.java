@@ -16,12 +16,23 @@ import me.bounser.nascraft.web.dto.ItemDTO;
 import me.bounser.nascraft.web.dto.PortfolioDTO;
 import me.bounser.nascraft.web.dto.TimeSeriesDTO;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import me.bounser.nascraft.web.WebAuthManager;
+import me.bounser.nascraft.web.SecurityUtils;
+import me.bounser.nascraft.portfolio.PortfolioService;
+import me.bounser.nascraft.market.TradeService;
+import me.bounser.nascraft.managers.MoneyManager;
+import me.bounser.nascraft.managers.currencies.CurrenciesManager;
+import me.bounser.nascraft.managers.currencies.Currency;
+import me.bounser.nascraft.database.commands.resources.Trade;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,6 +64,7 @@ public final class WebServerManager {
         this.webConfig = webConfig;
         this.port = webConfig.port();
         this.externalWebRootPath = new File(plugin.getDataFolder(), "web").getAbsolutePath();
+        WebAuthManager.getInstance().reconfigureRateLimiter(webConfig.maxCodeAttemptsPerMinute());
     }
 
     public synchronized void startServer() {
@@ -111,6 +123,210 @@ public final class WebServerManager {
         });
 
         app.get("/api/icons/{identifier}.png", this::serveIcon);
+
+        // AUTH & ACCOUNT LINKING (Nascraft 1.9.5)
+        app.post("/api/auth/request", ctx -> {
+            if (WebAuthManager.getInstance().getRateLimiter().isRateLimited(ctx.ip())) {
+                ctx.status(429).result("RATE_LIMIT_EXCEEDED");
+                return;
+            }
+            WebAuthManager.LoginRequest req = WebAuthManager.getInstance().createLoginRequest(webConfig.codeExpirationSeconds());
+            plugin.getLogger().info("[Nascraft Web] Login code requested.");
+            
+            ctx.cookie(new io.javalin.http.Cookie("nascraft_login_token", req.privateToken, "/", webConfig.codeExpirationSeconds(), ctx.scheme().equals("https"), 0, true, null, null, io.javalin.http.SameSite.STRICT));
+            
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("code", req.code);
+            resp.put("expiresIn", webConfig.codeExpirationSeconds());
+            ctx.json(resp);
+        });
+
+        app.get("/api/auth/status", ctx -> {
+            String privateToken = ctx.cookie("nascraft_login_token");
+            if (privateToken == null) {
+                ctx.json(Map.of("status", "expired"));
+                return;
+            }
+            WebAuthManager.LoginRequest req = WebAuthManager.getInstance().getRequestByToken(privateToken);
+            if (req == null || req.isExpired()) {
+                ctx.json(Map.of("status", "expired"));
+            } else {
+                Map<String, Object> resp = new HashMap<>();
+                resp.put("status", req.status);
+                if (req.username != null) {
+                    resp.put("username", req.username);
+                }
+                ctx.json(resp);
+            }
+        });
+
+        app.post("/api/auth/confirm", ctx -> {
+            String privateToken = ctx.cookie("nascraft_login_token");
+            WebAuthManager.LoginRequest req = WebAuthManager.getInstance().getRequestByToken(privateToken);
+            if (req == null || !"player_found".equals(req.status)) {
+                ctx.status(400).result("LOGIN_CODE_INVALID");
+                return;
+            }
+            
+            req.status = "confirmed";
+            String sessionToken = SecurityUtils.generateSecureToken();
+            String sessionHash = SecurityUtils.hashToken(sessionToken);
+            
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime expiresAt = now.plusDays(webConfig.sessionExpirationDays());
+            
+            DatabaseManager.get().getDatabase().saveWebSession(sessionHash, req.playerUuid, now, now, expiresAt);
+            plugin.getLogger().info("[Nascraft Web] Web session confirmed for " + req.username + ".");
+            
+            ctx.cookie(new io.javalin.http.Cookie("nascraft_session", sessionToken, "/", (int) java.util.concurrent.TimeUnit.DAYS.toSeconds(webConfig.sessionExpirationDays()), ctx.scheme().equals("https"), 0, true, null, null, io.javalin.http.SameSite.STRICT));
+            ctx.cookie(new io.javalin.http.Cookie("nascraft_login_token", "", "/", 0, ctx.scheme().equals("https"), 0, true, null, null, io.javalin.http.SameSite.STRICT));
+            WebAuthManager.getInstance().removeRequest(privateToken);
+            
+            ctx.json(Map.of("uuid", req.playerUuid.toString(), "username", req.username));
+        });
+
+        app.post("/api/auth/logout", ctx -> {
+            String sessionToken = ctx.cookie("nascraft_session");
+            if (sessionToken != null) {
+                DatabaseManager.get().getDatabase().deleteWebSession(SecurityUtils.hashToken(sessionToken));
+            }
+            ctx.cookie(new io.javalin.http.Cookie("nascraft_session", "", "/", 0, ctx.scheme().equals("https"), 0, true, null, null, io.javalin.http.SameSite.STRICT));
+            ctx.json(Map.of("success", true));
+        });
+
+        app.get("/api/me", ctx -> {
+            UUID playerUuid = getAuthenticatedPlayerUUID(ctx);
+            if (playerUuid == null) {
+                ctx.status(401).result("NOT_AUTHENTICATED");
+                return;
+            }
+            String username = DatabaseManager.get().getDatabase().getNameByUUID(playerUuid);
+            if (username == null || username.isBlank()) {
+                username = Bukkit.getOfflinePlayer(playerUuid).getName();
+            }
+            if (username == null) username = "Unknown Player";
+            
+            ctx.json(Map.of("uuid", playerUuid.toString(), "username", username));
+        });
+
+        // PORTFOLIO & TRADING (Nascraft 1.9.5)
+        app.get("/api/me/portfolio", ctx -> {
+            UUID playerUuid = getAuthenticatedPlayerUUID(ctx);
+            if (playerUuid == null) {
+                ctx.status(401).result("NOT_AUTHENTICATED");
+                return;
+            }
+            ctx.json(getPortfolioData(playerUuid));
+        });
+
+        app.post("/api/me/portfolio/unlock-slot", ctx -> {
+            UUID playerUuid = getAuthenticatedPlayerUUID(ctx);
+            if (playerUuid == null) {
+                ctx.status(401).result("NOT_AUTHENTICATED");
+                return;
+            }
+            Portfolio portfolio = me.bounser.nascraft.portfolio.PortfoliosManager.getInstance().getPortfolio(playerUuid);
+            if (portfolio.getCapacity() >= 27) {
+                ctx.status(400).result("NO_MORE_PORTFOLIO_SLOTS");
+                return;
+            }
+            double price = portfolio.getNextSlotPrice();
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
+            Currency currency = CurrenciesManager.getInstance().getDefaultCurrency();
+            
+            if (!MoneyManager.getInstance().hasEnoughMoney(offlinePlayer, currency, price)) {
+                ctx.status(400).result("NOT_ENOUGH_MONEY");
+                return;
+            }
+            
+            boolean success = PortfolioService.unlockNextSlot(playerUuid);
+            if (success) {
+                String username = DatabaseManager.get().getDatabase().getNameByUUID(playerUuid);
+                if (username == null || username.isBlank()) username = offlinePlayer.getName();
+                plugin.getLogger().info("[Nascraft Web] " + username + " unlocked portfolio slot " + portfolio.getCapacity() + " via web.");
+                ctx.json(getPortfolioData(playerUuid));
+            } else {
+                ctx.status(400).result("TRADE_FAILED");
+            }
+        });
+
+        app.post("/api/trade/buy", ctx -> {
+            UUID playerUuid = getAuthenticatedPlayerUUID(ctx);
+            if (playerUuid == null) {
+                ctx.status(401).result("NOT_AUTHENTICATED");
+                return;
+            }
+            
+            Map<String, Object> body = ctx.bodyAsClass(Map.class);
+            String itemIdentifier = (String) body.get("item");
+            int amount = ((Number) body.get("amount")).intValue();
+            
+            Item item = Services.get().market().getItem(itemIdentifier);
+            if (item == null) {
+                ctx.status(404).result("ITEM_NOT_FOUND");
+                return;
+            }
+            
+            TradeService.TradeResult result = TradeService.buyToPortfolio(playerUuid, item, amount).get();
+            if (result.success) {
+                String username = DatabaseManager.get().getDatabase().getNameByUUID(playerUuid);
+                if (username == null || username.isBlank()) username = Bukkit.getOfflinePlayer(playerUuid).getName();
+                plugin.getLogger().info("[Nascraft Web] " + username + " bought " + amount + " " + item.getIdentifier() + " via web.");
+                ctx.json(Map.of("success", true, "worth", result.worth));
+            } else {
+                ctx.status(400).result(result.error.name());
+            }
+        });
+
+        app.post("/api/trade/sell", ctx -> {
+            UUID playerUuid = getAuthenticatedPlayerUUID(ctx);
+            if (playerUuid == null) {
+                ctx.status(401).result("NOT_AUTHENTICATED");
+                return;
+            }
+            
+            Map<String, Object> body = ctx.bodyAsClass(Map.class);
+            String itemIdentifier = (String) body.get("item");
+            int amount = ((Number) body.get("amount")).intValue();
+            
+            Item item = Services.get().market().getItem(itemIdentifier);
+            if (item == null) {
+                ctx.status(404).result("ITEM_NOT_FOUND");
+                return;
+            }
+            
+            TradeService.TradeResult result = TradeService.sellFromPortfolio(playerUuid, item, amount).get();
+            if (result.success) {
+                String username = DatabaseManager.get().getDatabase().getNameByUUID(playerUuid);
+                if (username == null || username.isBlank()) username = Bukkit.getOfflinePlayer(playerUuid).getName();
+                plugin.getLogger().info("[Nascraft Web] " + username + " sold " + amount + " " + item.getIdentifier() + " via web.");
+                ctx.json(Map.of("success", true, "worth", result.worth));
+            } else {
+                ctx.status(400).result(result.error.name());
+            }
+        });
+
+        app.get("/api/me/trades", ctx -> {
+            UUID playerUuid = getAuthenticatedPlayerUUID(ctx);
+            if (playerUuid == null) {
+                ctx.status(401).result("NOT_AUTHENTICATED");
+                return;
+            }
+            
+            List<Trade> trades = DatabaseManager.get().getDatabase().retrieveTrades(playerUuid, 0, 50);
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Trade t : trades) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("item", t.getItem().getIdentifier());
+                m.put("displayName", t.getItem().getName());
+                m.put("amount", t.getAmount());
+                m.put("value", t.getValue());
+                m.put("buy", t.isBuy());
+                m.put("date", t.getDate().toString());
+                result.add(m);
+            }
+            ctx.json(result);
+        });
     }
 
     private List<ItemDTO> getAllItemData() {
@@ -245,6 +461,66 @@ public final class WebServerManager {
             plugin.getLogger().log(Level.SEVERE, "Error processing image " + identifier, exception);
             ctx.status(500).result("Error processing image.");
         }
+    }
+
+    private UUID getAuthenticatedPlayerUUID(Context ctx) {
+        String sessionToken = ctx.cookie("nascraft_session");
+        if (sessionToken == null) return null;
+        String sessionHash = SecurityUtils.hashToken(sessionToken);
+        UUID uuid = DatabaseManager.get().getDatabase().getWebSessionPlayerUUID(sessionHash);
+        if (uuid == null) return null;
+        
+        DatabaseManager.get().getDatabase().updateWebSessionActivity(sessionHash, LocalDateTime.now());
+        return uuid;
+    }
+
+    private Map<String, Object> getPortfolioData(UUID uuid) {
+        Portfolio portfolio = me.bounser.nascraft.portfolio.PortfoliosManager.getInstance().getPortfolio(uuid);
+        String username = DatabaseManager.get().getDatabase().getNameByUUID(uuid);
+        if (username == null || username.isBlank()) {
+            username = Bukkit.getOfflinePlayer(uuid).getName();
+        }
+        if (username == null) username = "Unknown Player";
+
+        double worth = portfolio.getInventoryValue();
+        double balance = MoneyManager.getInstance().getBalance(Bukkit.getOfflinePlayer(uuid), CurrenciesManager.getInstance().getDefaultCurrency());
+        int unlocked = portfolio.getCapacity();
+        int max = 27;
+        double nextPrice = portfolio.getNextSlotPrice();
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("username", username);
+        resp.put("portfolioValue", worth);
+        resp.put("unlockedSlots", unlocked);
+        resp.put("maximumSlots", max);
+        resp.put("nextSlotPrice", nextPrice);
+        resp.put("balance", balance);
+
+        List<Map<String, Object>> slots = new ArrayList<>();
+        List<Item> items = new ArrayList<>(portfolio.getContent().keySet());
+
+        for (int i = 0; i < max; i++) {
+            Map<String, Object> slot = new HashMap<>();
+            slot.put("slot", i);
+            if (i < unlocked) {
+                slot.put("locked", false);
+                if (i < items.size()) {
+                    Item item = items.get(i);
+                    slot.put("item", item.getIdentifier());
+                    slot.put("amount", portfolio.getContent().get(item));
+                    slot.put("displayName", item.getName());
+                    slot.put("price", item.getPrice().getValue());
+                } else {
+                    slot.put("item", null);
+                    slot.put("amount", 0);
+                }
+            } else {
+                slot.put("locked", true);
+            }
+            slots.add(slot);
+        }
+        resp.put("slots", slots);
+        return resp;
     }
 
     public synchronized void stopServer() {

@@ -9,6 +9,7 @@ import me.bounser.nascraft.market.MarketManager;
 import me.bounser.nascraft.config.Config;
 import me.bounser.nascraft.market.resources.Category;
 import me.bounser.nascraft.market.unit.Item;
+import me.bounser.nascraft.web.WebAuthManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
@@ -71,6 +72,41 @@ public class MarketCommand extends Command {
                 }
 
                 MarketMenuManager.getInstance().setMenuOfPlayer(player, new BuySellMenu(player, item));
+                return;
+            }
+
+            if (args.length == 2 && args[0].equalsIgnoreCase("webcode")) {
+                WebAuthManager auth = WebAuthManager.getInstance();
+                if (auth.isPlayerCodeRateLimited(player.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED + "Too many web login attempts. Please wait a minute and try again.");
+                    Nascraft.getInstance().getLogger().warning("[Nascraft Web] Rate-limited webcode attempts for " + player.getName() + ".");
+                    return;
+                }
+
+                String code = args[1];
+                if (!code.matches("\\d{6}")) {
+                    player.sendMessage(ChatColor.RED + "Invalid code format. The code must be exactly 6 digits.");
+                    Nascraft.getInstance().getLogger().info("[Nascraft Web] Invalid webcode format from " + player.getName() + ".");
+                    return;
+                }
+
+                WebAuthManager.LoginRequest req = auth.getRequestByCode(code);
+                if (req == null || req.isExpired()) {
+                    player.sendMessage(ChatColor.RED + "This login code is invalid or has expired.");
+                    Nascraft.getInstance().getLogger().info("[Nascraft Web] Invalid or expired webcode attempt from " + player.getName() + ".");
+                    return;
+                }
+
+                req.playerUuid = player.getUniqueId();
+                req.username = player.getName();
+                req.status = "player_found";
+
+                auth.consumeCode(code);
+
+                player.sendMessage(ChatColor.GREEN + "Web login request linked.");
+                player.sendMessage(ChatColor.GREEN + "Please return to your browser and confirm that \"" + player.getName() + "\" is your account.");
+
+                Nascraft.getInstance().getLogger().info("[Nascraft Web] Login code linked to " + player.getName() + ".");
                 return;
             }
 
@@ -182,8 +218,9 @@ public class MarketCommand extends Command {
 
         switch (args.length) {
             case 1:
-                return StringUtil.copyPartialMatches(args[0], Arrays.asList("buy", "sell"), new ArrayList<>());
+                return StringUtil.copyPartialMatches(args[0], Arrays.asList("buy", "sell", "webcode", "category", "item"), new ArrayList<>());
             case 2:
+                if (args[0].equalsIgnoreCase("webcode")) return Collections.singletonList("123456");
                 return StringUtil.copyPartialMatches(args[1], MarketManager.getInstance().getAllItemsAndChildsIdentifiers(), new ArrayList<>());
             case 3:
                 return Collections.singletonList("quantity");

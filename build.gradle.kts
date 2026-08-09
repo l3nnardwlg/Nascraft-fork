@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "me.bounser"
-version = "1.9.4"
+version = "1.9.6"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_25
@@ -117,11 +117,8 @@ val restoreOriginalWebResources by tasks.registering {
 
 tasks {
     processResources {
-        dependsOn(restoreOriginalWebResources)
-
         val props = mapOf("version" to project.version)
         inputs.properties(props)
-        from(originalWebResources)
         exclude("web-original-1.9.1.zip")
 
         filesMatching("plugin.yml") {
@@ -146,6 +143,7 @@ tasks {
         relocate("net.wesjd.anvilgui", "me.bounser.anvilgui")
         relocate("de.tr7zw.changeme.nbtapi", "me.bounser.nbtapi")
         relocate("io.javalin", "me.bounser.web.libs.javalin")
+        relocate("com.fasterxml.jackson", "me.bounser.web.libs.jackson")
     }
 
     test {

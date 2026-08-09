@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "me.bounser"
-version = "1.9.2"
+version = "1.9.5"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_25

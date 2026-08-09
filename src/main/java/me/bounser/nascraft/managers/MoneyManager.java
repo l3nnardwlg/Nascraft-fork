@@ -163,4 +163,15 @@ public class MoneyManager {
                 return 0;
         }
     }
+
+    public boolean isCurrencyAvailable(Currency currency) {
+        switch (currency.getCurrencyType()) {
+            case VAULT:
+                return economy != null;
+            case CUSTOM:
+                return true;
+            default:
+                return false;
+        }
+    }
 }

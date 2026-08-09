@@ -7,6 +7,7 @@ import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.inventorygui.*;
 import me.bounser.nascraft.inventorygui.admin.MarketAdminListener;
 import me.bounser.nascraft.inventorygui.admin.MarketAdminMenu;
+import me.bounser.nascraft.market.MarketAvailabilityListener;
 import me.bounser.nascraft.market.MarketManager;
 import me.bounser.nascraft.config.Config;
 import me.bounser.nascraft.market.resources.Category;
@@ -32,6 +33,7 @@ public class MarketCommand extends Command {
                 "Direct access to the market",
                 "nascraft.market"
         );
+        Bukkit.getPluginManager().registerEvents(new MarketAvailabilityListener(), Nascraft.getInstance());
     }
 
     @Override

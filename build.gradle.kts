@@ -66,10 +66,64 @@ dependencies {
     testImplementation("io.papermc.paper:paper-api:26.2.build.+")
 }
 
+val upstreamWebJar = layout.buildDirectory.file("upstream/Nascraft-1.9.1.jar")
+val originalWebResources = layout.buildDirectory.dir("generated/original-web-resources")
+
+val restoreOriginalWebResources by tasks.registering {
+    outputs.dir(originalWebResources)
+
+    doLast {
+        val jarFile = upstreamWebJar.get().asFile
+        jarFile.parentFile.mkdirs()
+
+        if (!jarFile.exists()) {
+            val source = uri("https://github.com/Bounser/Nascraft/releases/download/v1.9.1/Nascraft-1.9.1.jar").toURL()
+            source.openStream().use { input ->
+                jarFile.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+
+        require(jarFile.length() == 27_486_714L) {
+            "Unexpected Nascraft 1.9.1 release JAR size: ${jarFile.length()} bytes"
+        }
+
+        val outputDir = originalWebResources.get().asFile
+        delete(outputDir)
+
+        copy {
+            from(zipTree(jarFile))
+            into(outputDir)
+            include("web/index.html")
+            include("web/style.css")
+            include("web/script.js")
+            include("images/logo.png")
+            include("images/logo-color.png")
+        }
+
+        val required = listOf(
+            "web/index.html",
+            "web/style.css",
+            "web/script.js",
+            "images/logo.png",
+            "images/logo-color.png"
+        )
+        required.forEach { path ->
+            require(outputDir.resolve(path).isFile) {
+                "Original Nascraft 1.9.1 web resource missing from release JAR: $path"
+            }
+        }
+    }
+}
+
 tasks {
     processResources {
+        dependsOn(restoreOriginalWebResources)
+
         val props = mapOf("version" to project.version)
         inputs.properties(props)
+        from(originalWebResources)
+        exclude("web-original-1.9.1.zip")
+
         filesMatching("plugin.yml") {
             expand(props)
         }

@@ -16,6 +16,8 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class HistorialData {
 
@@ -136,21 +138,25 @@ public class HistorialData {
     }
 
     public static List<Instant> getAllPrices(Connection connection, Item item) {
-        List<Instant> prices = new LinkedList<>();
-        String sql = "SELECT bucket_start, close, volume FROM prices_history WHERE identifier=? ORDER BY bucket_start ASC";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, item.getIdentifier());
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    java.time.Instant t = BaseDatabase.fromIso(rs.getString("bucket_start"));
-                    if (t == null) continue;
-                    LocalDateTime ldt = LocalDateTime.ofInstant(t, ZoneId.systemDefault());
-                    prices.add(new Instant(ldt, rs.getDouble("close"), (int) rs.getDouble("volume")));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+        // Build one continuous series from the existing storage tiers. The web
+        // frontend used to read only prices_history (daily candles), so a 30m,
+        // 1h or 12h view often contained only one or two points. Recent minute
+        // candles now survive restarts in prices_day and are merged here, while
+        // older data continues to come from the compact month/history tables.
+        java.time.Instant now = java.time.Instant.now();
+        Map<LocalDateTime, Instant> merged = new TreeMap<>();
+
+        for (Instant instant : readRange(connection, "prices_history", item, java.time.Instant.EPOCH, 0)) {
+            merged.put(instant.getLocalDateTime(), instant);
         }
+        for (Instant instant : readRange(connection, "prices_month", item, now.minus(30, ChronoUnit.DAYS), 0)) {
+            merged.put(instant.getLocalDateTime(), instant);
+        }
+        for (Instant instant : readRange(connection, "prices_day", item, now.minus(2, ChronoUnit.DAYS), 0)) {
+            merged.put(instant.getLocalDateTime(), instant);
+        }
+
+        List<Instant> prices = new LinkedList<>(merged.values());
         if (prices.isEmpty()) {
             prices.add(new Instant(LocalDateTime.now().minusDays(30), 0, 0));
             prices.add(new Instant(LocalDateTime.now().minusMinutes(5), 0, 0));

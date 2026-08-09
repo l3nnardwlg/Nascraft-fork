@@ -24,25 +24,31 @@ public class ItemStats {
 
         dataMinute.add(instant);
 
+        // Keep the raw minute sample in the persistent day history. Previously
+        // prices_day only received a five-minute aggregate, which made short web
+        // chart ranges look like a single diagonal line and threw those recent
+        // samples away from the chart after a server restart.
+        if (Config.getInstance().isPrimaryNode()) {
+            DatabaseManager.get().getDatabase().saveDayPrice(item, instant);
+        }
+
         if (dataMinute.size() % 5 == 0) {
 
             while (dataMinute.size() > 60)  dataMinute.remove(0);
 
             Instant dayInstant = new Instant(
                     getLocalDateTimeBetween(LocalDateTime.now(), dataMinute.get(dataMinute.size()-5).getLocalDateTime()),
-                    priceAverage(dataMinute.subList(dataMinute.size()-5, dataMinute.size()-1)),
-                    volumeAdder(dataMinute.subList(dataMinute.size()-5, dataMinute.size()-1)));
+                    priceAverage(dataMinute.subList(dataMinute.size()-5, dataMinute.size())),
+                    volumeAdder(dataMinute.subList(dataMinute.size()-5, dataMinute.size())));
 
             dataDay.add(dayInstant);
 
             while (dataDay.size() > 288)  dataDay.remove(0);
 
-            // Persist OHLCV candles on the primary node only. Followers keep the
-            // in-memory series above (for their own GUI charts) but must not write
-            // duplicate candle rows into the shared database.
+            // Persist coarser OHLCV candles on the primary node only. Followers
+            // keep the in-memory series above but must not write duplicate rows
+            // into the shared database.
             if (Config.getInstance().isPrimaryNode()) {
-
-                DatabaseManager.get().getDatabase().saveDayPrice(item, dayInstant);
 
                 Instant bigDayInstant = new Instant(
                         LocalDateTime.now(),

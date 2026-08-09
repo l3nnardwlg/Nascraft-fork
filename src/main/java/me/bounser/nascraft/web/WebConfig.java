@@ -58,4 +58,20 @@ public final class WebConfig {
     public boolean bindIp() {
         return config.getBoolean("website.session.bind-ip", false);
     }
+
+    public boolean authEnabled() {
+        return config.getBoolean("auth.enabled", true);
+    }
+
+    public int codeExpirationSeconds() {
+        return config.getInt("auth.code-expiration-seconds", 300);
+    }
+
+    public int sessionExpirationDays() {
+        return config.getInt("auth.session-expiration-days", 7);
+    }
+
+    public int maxCodeAttemptsPerMinute() {
+        return config.getInt("security.max-code-attempts-per-minute", 5);
+    }
 }

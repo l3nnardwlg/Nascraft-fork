@@ -117,11 +117,8 @@ val restoreOriginalWebResources by tasks.registering {
 
 tasks {
     processResources {
-        dependsOn(restoreOriginalWebResources)
-
         val props = mapOf("version" to project.version)
         inputs.properties(props)
-        from(originalWebResources)
         exclude("web-original-1.9.1.zip")
 
         filesMatching("plugin.yml") {

@@ -27,8 +27,13 @@ public class SqliteDatabase extends BaseDatabase {
         config.setJdbcUrl(url);
         config.setDriverClassName("org.sqlite.JDBC");
 
-        config.setMaximumPoolSize(1);
-        config.setConnectionTimeout(30_000);
+        // Portfolio/leaderboard reads can trigger nested reads while the outer
+        // query still owns a connection. With a pool size of one this causes a
+        // self-deadlock (active=1, idle=0, waiting=1). WAL mode supports
+        // concurrent readers, so keep a small bounded pool available.
+        config.setMaximumPoolSize(4);
+        config.setMinimumIdle(1);
+        config.setConnectionTimeout(10_000);
         config.setPoolName("Nascraft-SQLite");
     }
 

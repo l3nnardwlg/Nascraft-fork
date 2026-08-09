@@ -1,5 +1,6 @@
 package me.bounser.nascraft.inventorygui.admin;
 
+import me.bounser.nascraft.Nascraft;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -13,10 +14,13 @@ import java.util.Arrays;
 public final class MarketAdminMenu {
 
     public static final String TITLE = "§8§lMarket Admin";
+    private static boolean listenerRegistered = false;
 
     private MarketAdminMenu() {}
 
     public static void open(Player player) {
+        ensureListenerRegistered();
+
         Inventory inventory = Bukkit.createInventory(player, 27, TITLE);
 
         ItemStack filler = item(Material.BLACK_STAINED_GLASS_PANE, " ");
@@ -49,6 +53,7 @@ public final class MarketAdminMenu {
     }
 
     public static void openManipulation(Player player, boolean increase) {
+        ensureListenerRegistered();
         String title = increase ? "§8§lRaise Market Prices" : "§8§lLower Market Prices";
         Inventory inventory = Bukkit.createInventory(player, 27, title);
         ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
@@ -72,6 +77,12 @@ public final class MarketAdminMenu {
         inventory.setItem(22, item(Material.ARROW,
                 ChatColor.YELLOW + "§lBACK"));
         player.openInventory(inventory);
+    }
+
+    private static synchronized void ensureListenerRegistered() {
+        if (listenerRegistered) return;
+        Bukkit.getPluginManager().registerEvents(new MarketAdminListener(), Nascraft.getInstance());
+        listenerRegistered = true;
     }
 
     private static ItemStack item(Material material, String name, String... lore) {

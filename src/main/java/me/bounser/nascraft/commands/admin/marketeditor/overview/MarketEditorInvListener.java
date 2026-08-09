@@ -42,7 +42,8 @@ public class MarketEditorInvListener implements Listener {
 
         if (event.getClickedInventory() == null || event.getClickedInventory().equals(event.getView().getTopInventory())) event.setCancelled(true);
 
-        MarketEditor marketEditor = MarketEditorManager.getInstance().getMarketEditorFromPlayer(((Player) event.getWhoClicked()).getPlayer());
+        MarketEditor marketEditor = MarketEditorManager.getInstance().getMarketEditorFromPlayer(player);
+        if (marketEditor == null) return;
 
         switch (event.getRawSlot()) {
             case 0:
@@ -141,14 +142,41 @@ public class MarketEditorInvListener implements Listener {
                 return;
             default:
                 if (event.getCurrentItem() == null) return;
-                if ((event.getRawSlot() >= 9 && event.getRawSlot() <= 44)) {
+                if (event.getRawSlot() >= 9 && event.getRawSlot() <= 44) {
                     if (!event.getCurrentItem().getType().equals(Material.AIR)) {
                         Item item = getItemFromSlot(event.getRawSlot(), player);
                         if (item == null) return;
+
+                        if (event.isShiftClick()) {
+                            if (event.isLeftClick()) {
+                                toggleAvailability(item, "buy-enabled", "Buying", player);
+                            } else if (event.isRightClick()) {
+                                toggleAvailability(item, "sell-enabled", "Selling", player);
+                            }
+                            marketEditor.insertItems(event.getInventory());
+                            return;
+                        }
+
                         EditorManager.getInstance().startEditing(player, item);
                     }
                 }
         }
+    }
+
+    private void toggleAvailability(Item item, String key, String label, Player player) {
+        FileConfiguration items = Config.getInstance().getItemsFileConfiguration();
+        String path = "items." + item.getIdentifier() + "." + key;
+        boolean next = !items.getBoolean(path, true);
+        items.set(path, next);
+        try {
+            items.save(Config.getInstance().getItemsFile());
+        } catch (IOException e) {
+            player.sendMessage(ChatColor.RED + "Could not save items.yml: " + e.getMessage());
+            Nascraft.getInstance().getLogger().warning("Could not persist market availability for " + item.getIdentifier() + ": " + e.getMessage());
+            return;
+        }
+        player.sendMessage(ChatColor.LIGHT_PURPLE + label + " for " + item.getName() + ": "
+                + (next ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
     }
 
     public Item getItemFromSlot(int slot, Player player) {
@@ -159,7 +187,7 @@ public class MarketEditorInvListener implements Listener {
         else if (slot >= 37 && slot <= 44) i = 3;
 
         Category category = MarketManager.getInstance().getCategories().get(marketEditor.getVerticalOffset()+i);
-        return category.getItemOfIndex(slot - 10 - (9 * i) + (marketEditor.getHorizontalOffset()));
+        return category.getItemOfIndex(slot - 10 - (9 * i) + marketEditor.getHorizontalOffset());
     }
 
     public Category getCategoryFromSlot(int slot, Player player) {

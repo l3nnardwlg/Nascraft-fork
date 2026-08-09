@@ -163,7 +163,7 @@ public class TradeService {
     private static void updateMarket(Item item, int amount, boolean buy, boolean limitReached) {
         if (limitReached) return;
 
-        double direction = buy ? -1.0 : 1.0;
+        float direction = buy ? -1.0f : 1.0f;
         Item target = item.getParent() != null ? item.getParent() : item;
         target.updateInternalValues(
                 amount,

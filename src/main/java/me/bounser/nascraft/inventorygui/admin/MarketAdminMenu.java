@@ -1,25 +1,33 @@
 package me.bounser.nascraft.inventorygui.admin;
 
 import me.bounser.nascraft.Nascraft;
+import me.bounser.nascraft.commands.admin.marketeditor.edit.category.CategoryEditorListener;
+import me.bounser.nascraft.commands.admin.marketeditor.edit.item.EditItemMenuListener;
+import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditorInvListener;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.RegisteredListener;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class MarketAdminMenu {
 
     public static final String TITLE = "§8§lMarket Admin";
-    private static boolean listenerRegistered = false;
+    private static boolean listenersChecked = false;
 
     private MarketAdminMenu() {}
 
     public static void open(Player player) {
-        ensureListenerRegistered();
+        ensureListenersRegistered();
 
         Inventory inventory = Bukkit.createInventory(player, 27, TITLE);
 
@@ -53,7 +61,7 @@ public final class MarketAdminMenu {
     }
 
     public static void openManipulation(Player player, boolean increase) {
-        ensureListenerRegistered();
+        ensureListenersRegistered();
         String title = increase ? "§8§lRaise Market Prices" : "§8§lLower Market Prices";
         Inventory inventory = Bukkit.createInventory(player, 27, title);
         ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
@@ -79,10 +87,28 @@ public final class MarketAdminMenu {
         player.openInventory(inventory);
     }
 
-    private static synchronized void ensureListenerRegistered() {
-        if (listenerRegistered) return;
-        Bukkit.getPluginManager().registerEvents(new MarketAdminListener(), Nascraft.getInstance());
-        listenerRegistered = true;
+    private static synchronized void ensureListenersRegistered() {
+        if (listenersChecked) return;
+
+        Nascraft plugin = Nascraft.getInstance();
+        Set<Class<?>> registeredTypes = new HashSet<>();
+        for (RegisteredListener registered : HandlerList.getRegisteredListeners(plugin)) {
+            registeredTypes.add(registered.getListener().getClass());
+        }
+
+        registerIfMissing(plugin, registeredTypes, MarketAdminListener.class, new MarketAdminListener());
+        registerIfMissing(plugin, registeredTypes, MarketEditorInvListener.class, new MarketEditorInvListener());
+        registerIfMissing(plugin, registeredTypes, EditItemMenuListener.class, new EditItemMenuListener());
+        registerIfMissing(plugin, registeredTypes, CategoryEditorListener.class, new CategoryEditorListener());
+
+        listenersChecked = true;
+    }
+
+    private static void registerIfMissing(Nascraft plugin, Set<Class<?>> registeredTypes,
+                                          Class<?> type, Listener listener) {
+        if (registeredTypes.contains(type)) return;
+        Bukkit.getPluginManager().registerEvents(listener, plugin);
+        registeredTypes.add(type);
     }
 
     private static ItemStack item(Material material, String name, String... lore) {

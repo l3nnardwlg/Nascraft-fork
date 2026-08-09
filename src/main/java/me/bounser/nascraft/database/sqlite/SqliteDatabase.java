@@ -27,12 +27,10 @@ public class SqliteDatabase extends BaseDatabase {
         config.setJdbcUrl(url);
         config.setDriverClassName("org.sqlite.JDBC");
 
-        // Nascraft portfolio/leaderboard reads may perform nested database reads
-        // while the outer query still owns its connection. A single-connection
-        // pool therefore deadlocks itself (active=1, idle=0, waiting=1) and can
-        // stall the Paper server thread when another operation, such as a player
-        // join, needs the database at the same time. WAL mode supports concurrent
-        // readers, so keep a small bounded pool instead of a single connection.
+        // Portfolio/leaderboard reads can trigger nested reads while the outer
+        // query still owns a connection. With a pool size of one this causes a
+        // self-deadlock (active=1, idle=0, waiting=1). WAL mode supports
+        // concurrent readers, so keep a small bounded pool available.
         config.setMaximumPoolSize(4);
         config.setMinimumIdle(1);
         config.setConnectionTimeout(10_000);
@@ -125,29 +123,78 @@ public class SqliteDatabase extends BaseDatabase {
                 "uuid VARCHAR(36) PRIMARY KEY, " +
                 "capacity INT NOT NULL)");
 
-        safeExec(connection, "CREATE TABLE IF NOT EXISTS debt (" +
-                "uuid VARCHAR(36) PRIMARY KEY, " +
-                "amount DOUBLE NOT NULL DEFAULT 0, " +
-                "last_interest_day INT NOT NULL DEFAULT 0, " +
-                "interests_paid DOUBLE NOT NULL DEFAULT 0)");
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS discord_links (" +
+                "userid VARCHAR(18) PRIMARY KEY, " +
+                "uuid VARCHAR(36) NOT NULL, " +
+                "nickname TEXT NOT NULL)");
 
-        safeExec(connection, "CREATE TABLE IF NOT EXISTS trades (" +
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS trade_log (" +
                 "id INTEGER PRIMARY KEY, " +
-                "identifier TEXT NOT NULL, " +
+                "uuid VARCHAR(36) NOT NULL, " +
+                "day INT NOT NULL, " +
                 "date TEXT NOT NULL, " +
-                "value DOUBLE NOT NULL, " +
+                "identifier TEXT NOT NULL, " +
                 "amount INT NOT NULL, " +
-                "buy BOOLEAN NOT NULL, " +
-                "admin BOOLEAN NOT NULL, " +
-                "uuid VARCHAR(36))");
-
-        safeExec(connection, "CREATE TABLE IF NOT EXISTS names (" +
-                "uuid VARCHAR(36) PRIMARY KEY, " +
-                "name TEXT NOT NULL)");
+                "value REAL NOT NULL, " +
+                "buy INT NOT NULL, " +
+                "discord INT NOT NULL)");
 
         safeExec(connection, "CREATE TABLE IF NOT EXISTS cpi (" +
-                "date TEXT PRIMARY KEY, " +
+                "day INT PRIMARY KEY, " +
+                "date TEXT NOT NULL, " +
                 "value DOUBLE NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS alerts (" +
+                "day INT NOT NULL, " +
+                "userid TEXT NOT NULL, " +
+                "identifier TEXT NOT NULL, " +
+                "price DOUBLE NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS flows (" +
+                "day INT PRIMARY KEY, " +
+                "flow DOUBLE NOT NULL, " +
+                "taxes DOUBLE NOT NULL, " +
+                "operations INT NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS limit_orders (" +
+                "id INTEGER PRIMARY KEY, " +
+                "expiration TEXT NOT NULL, " +
+                "uuid VARCHAR(36) NOT NULL, " +
+                "identifier TEXT NOT NULL, " +
+                "type INT NOT NULL, " +
+                "price DOUBLE NOT NULL, " +
+                "to_complete INT NOT NULL, " +
+                "completed INT NOT NULL, " +
+                "cost DOUBLE NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS loans (" +
+                "id INTEGER PRIMARY KEY, " +
+                "uuid VARCHAR(36) NOT NULL UNIQUE, " +
+                "debt DOUBLE NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS interests (" +
+                "id INTEGER PRIMARY KEY, " +
+                "uuid VARCHAR(36) NOT NULL UNIQUE, " +
+                "paid DOUBLE NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS user_names (" +
+                "id INTEGER PRIMARY KEY, " +
+                "uuid VARCHAR(36) NOT NULL UNIQUE, " +
+                "name TEXT NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS balances (" +
+                "id INTEGER PRIMARY KEY, " +
+                "uuid VARCHAR(36) NOT NULL UNIQUE, " +
+                "balance DOUBLE NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS money_supply (" +
+                "day INT PRIMARY KEY, " +
+                "supply DOUBLE NOT NULL)");
+
+        safeExec(connection, "CREATE TABLE IF NOT EXISTS discord (" +
+                "userid VARCHAR(18) PRIMARY KEY, " +
+                "uuid VARCHAR(36) NOT NULL, " +
+                "nickname TEXT NOT NULL)");
 
         safeExec(connection, "CREATE TABLE IF NOT EXISTS web_sessions (" +
                 "session_hash VARCHAR(64) PRIMARY KEY, " +
@@ -157,13 +204,22 @@ public class SqliteDatabase extends BaseDatabase {
                 "expires_at TEXT NOT NULL)");
     }
 
-    private void addMissingIndexes(Connection connection) throws SQLException {
-        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_prices_day_identifier ON prices_day(identifier)");
-        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_prices_month_identifier ON prices_month(identifier)");
-        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_prices_history_identifier ON prices_history(identifier)");
-        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_trades_uuid ON trades(uuid)");
-        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_portfolios_worth_day ON portfolios_worth(day)");
-        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_web_sessions_player_uuid ON web_sessions(player_uuid)");
-        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_web_sessions_expires_at ON web_sessions(expires_at)");
+    private void addMissingIndexes(Connection connection) {
+        // Unique indexes on existing installs that predate the schema improvements above.
+        // CREATE UNIQUE INDEX IF NOT EXISTS is idempotent and safe to run every startup.
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_loans_uuid ON loans(uuid)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_interests_uuid ON interests(uuid)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_portfolios_pk ON portfolios(uuid, identifier)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_portfolios_worth_uk ON portfolios_worth(uuid, day)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_discord_links_userid ON discord_links(userid)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_discord_userid ON discord(userid)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_names_uuid ON user_names(uuid)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_balances_uuid ON balances(uuid)");
+        safeExec(connection, "CREATE UNIQUE INDEX IF NOT EXISTS idx_cpi_day ON cpi(day)");
+        // Performance indexes
+        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_trade_log_uuid ON trade_log(uuid)");
+        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_trade_log_identifier ON trade_log(identifier)");
+        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_portfolios_log_uuid ON portfolios_log(uuid)");
+        safeExec(connection, "CREATE INDEX IF NOT EXISTS idx_portfolios_worth_uuid ON portfolios_worth(uuid)");
     }
 }

@@ -12,13 +12,13 @@ import java.util.List;
 import java.util.logging.Level;
 
 /**
- * Nascraft 2 entrypoint that restores the self-hosted website shipped in the
- * official Nascraft 1.9.1 release JAR.
+ * Nascraft entrypoint that restores the bundled web frontend when the bundled
+ * web version changes, then starts the self-hosted web server.
  */
 public class NascraftWebEntrypoint extends Nascraft {
 
-    private static final String WEB_BUNDLE_VERSION = "1.9.1-original-direct";
-    private static final List<String> ORIGINAL_WEB_RESOURCES = List.of(
+    private static final String WEB_BUNDLE_VERSION = "1.9.5-web-account-linking";
+    private static final List<String> WEB_RESOURCES = List.of(
             "web/index.html",
             "web/style.css",
             "web/script.js",
@@ -36,7 +36,7 @@ public class NascraftWebEntrypoint extends Nascraft {
         WebConfig webConfig = new WebConfig(this);
         if (!webConfig.enabled()) return;
 
-        restoreOriginalWebFrontend();
+        restoreBundledWebFrontend();
 
         webServerManager = new WebServerManager(this, webConfig);
         FoliaScheduler.runAsync(this, webServerManager::startServer);
@@ -51,14 +51,14 @@ public class NascraftWebEntrypoint extends Nascraft {
         super.onDisable();
     }
 
-    private void restoreOriginalWebFrontend() {
+    private void restoreBundledWebFrontend() {
         File webDirectory = new File(getDataFolder(), "web");
         File marker = new File(webDirectory, ".nascraft-web-version");
 
         try {
             if (marker.isFile()
                     && Files.readString(marker.toPath(), StandardCharsets.UTF_8).trim().equals(WEB_BUNDLE_VERSION)) {
-                getLogger().info("Original Nascraft 1.9.1 web frontend is present at " + webDirectory.getAbsolutePath());
+                getLogger().info("Nascraft web frontend " + WEB_BUNDLE_VERSION + " is present at " + webDirectory.getAbsolutePath());
                 return;
             }
         } catch (IOException exception) {
@@ -66,7 +66,7 @@ public class NascraftWebEntrypoint extends Nascraft {
         }
 
         try {
-            for (String resource : ORIGINAL_WEB_RESOURCES) {
+            for (String resource : WEB_RESOURCES) {
                 File destination = new File(getDataFolder(), resource);
                 File parent = destination.getParentFile();
                 if (parent != null && !parent.exists() && !parent.mkdirs()) {
@@ -74,16 +74,16 @@ public class NascraftWebEntrypoint extends Nascraft {
                 }
 
                 saveResource(resource, true);
-                getLogger().info("Restored original web resource: " + resource);
+                getLogger().info("Restored bundled web resource: " + resource);
             }
 
             if (!webDirectory.exists() && !webDirectory.mkdirs()) {
                 throw new IOException("Could not create web directory " + webDirectory);
             }
             Files.writeString(marker.toPath(), WEB_BUNDLE_VERSION + System.lineSeparator(), StandardCharsets.UTF_8);
-            getLogger().info("Original Nascraft 1.9.1 web frontend restored to " + webDirectory.getAbsolutePath());
+            getLogger().info("Nascraft web frontend restored to " + webDirectory.getAbsolutePath());
         } catch (IOException | IllegalArgumentException exception) {
-            getLogger().log(Level.SEVERE, "Failed to restore original Nascraft 1.9.1 web frontend.", exception);
+            getLogger().log(Level.SEVERE, "Failed to restore bundled Nascraft web frontend.", exception);
         }
     }
 }

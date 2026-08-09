@@ -17,11 +17,12 @@ import java.util.logging.Level;
  */
 public class NascraftWebEntrypoint extends Nascraft {
 
-    private static final String WEB_BUNDLE_VERSION = "1.9.5-web-account-linking";
+    private static final String WEB_BUNDLE_VERSION = "1.9.6-production-hardening";
     private static final List<String> WEB_RESOURCES = List.of(
             "web/index.html",
             "web/style.css",
             "web/script.js",
+            "web/production-hardening.js",
             "images/logo.png",
             "images/logo-color.png",
             "images/fire.png"
@@ -77,6 +78,8 @@ public class NascraftWebEntrypoint extends Nascraft {
                 getLogger().info("Restored bundled web resource: " + resource);
             }
 
+            ensureHardeningScriptLoaded(webDirectory);
+
             if (!webDirectory.exists() && !webDirectory.mkdirs()) {
                 throw new IOException("Could not create web directory " + webDirectory);
             }
@@ -85,5 +88,22 @@ public class NascraftWebEntrypoint extends Nascraft {
         } catch (IOException | IllegalArgumentException exception) {
             getLogger().log(Level.SEVERE, "Failed to restore bundled Nascraft web frontend.", exception);
         }
+    }
+
+    private void ensureHardeningScriptLoaded(File webDirectory) throws IOException {
+        File index = new File(webDirectory, "index.html");
+        if (!index.isFile()) return;
+
+        String html = Files.readString(index.toPath(), StandardCharsets.UTF_8);
+        String scriptTag = "<script src=\"production-hardening.js\" defer></script>";
+        if (html.contains(scriptTag)) return;
+
+        int bodyEnd = html.lastIndexOf("</body>");
+        if (bodyEnd >= 0) {
+            html = html.substring(0, bodyEnd) + "    " + scriptTag + System.lineSeparator() + html.substring(bodyEnd);
+        } else {
+            html += System.lineSeparator() + scriptTag + System.lineSeparator();
+        }
+        Files.writeString(index.toPath(), html, StandardCharsets.UTF_8);
     }
 }

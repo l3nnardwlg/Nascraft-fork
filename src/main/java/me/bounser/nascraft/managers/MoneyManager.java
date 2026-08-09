@@ -8,18 +8,48 @@ import me.clip.placeholderapi.PlaceholderAPI;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
-
-import java.util.UUID;
+import org.bukkit.plugin.RegisteredServiceProvider;
 
 public class MoneyManager {
 
     private static MoneyManager instance;
 
-    private Economy economy;
-    public static MoneyManager getInstance() { return instance == null ? instance = new MoneyManager() : instance; }
+    public static MoneyManager getInstance() {
+        return instance == null ? instance = new MoneyManager() : instance;
+    }
 
     private MoneyManager() {
-        economy = Nascraft.getEconomy();
+    }
+
+    /**
+     * Resolves the Vault economy provider at the time it is needed instead of
+     * caching the value during Nascraft startup. Economy plugins may register
+     * their Vault provider after Nascraft has already been enabled.
+     */
+    private Economy resolveEconomy() {
+        Economy current = Nascraft.getEconomy();
+        if (current != null) return current;
+
+        RegisteredServiceProvider<Economy> registration =
+                Bukkit.getServicesManager().getRegistration(Economy.class);
+        return registration == null ? null : registration.getProvider();
+    }
+
+    public boolean isCurrencyAvailable(Currency currency) {
+        return switch (currency.getCurrencyType()) {
+            case VAULT -> resolveEconomy() != null;
+            case CUSTOM -> Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
+        };
+    }
+
+    private Economy requireEconomy() {
+        Economy provider = resolveEconomy();
+        if (provider == null) {
+            throw new IllegalStateException(
+                    "No Vault Economy provider is registered. Ensure an economy plugin is enabled and hooked into Vault."
+            );
+        }
+        return provider;
     }
 
     public void withdraw(OfflinePlayer player, Currency currency, double amount, double taxRate) {
@@ -27,7 +57,7 @@ public class MoneyManager {
         switch (currency.getCurrencyType()) {
 
             case VAULT:
-                economy.withdrawPlayer(player, amount);
+                requireEconomy().withdrawPlayer(player, amount);
 
                 if (taxRate == 0)
                     DatabaseManager.get().getDatabase().addTransaction(amount, 0);
@@ -58,7 +88,7 @@ public class MoneyManager {
         switch (currency.getCurrencyType()) {
 
             case VAULT:
-                economy.withdrawPlayer(player, amount);
+                requireEconomy().withdrawPlayer(player, amount);
                 break;
 
             case CUSTOM:
@@ -83,7 +113,7 @@ public class MoneyManager {
         switch (currency.getCurrencyType()) {
 
             case VAULT:
-                economy.depositPlayer(player, amount);
+                requireEconomy().depositPlayer(player, amount);
 
                 if (taxRate == 0)
                     DatabaseManager.get().getDatabase().addTransaction(-amount, 0);
@@ -113,7 +143,7 @@ public class MoneyManager {
         switch (currency.getCurrencyType()) {
 
             case VAULT:
-                economy.depositPlayer(player, amount);
+                requireEconomy().depositPlayer(player, amount);
 
                 break;
 
@@ -138,11 +168,18 @@ public class MoneyManager {
         switch (currency.getCurrencyType()) {
 
             case VAULT:
-                return economy.getBalance(player) >= quantity;
+                Economy provider = resolveEconomy();
+                if (provider == null) {
+                    Nascraft.getInstance().getLogger().warning(
+                            "A Vault currency was used, but no Economy provider is currently registered."
+                    );
+                    return false;
+                }
+                return provider.getBalance(player) >= quantity;
 
             case CUSTOM:
                 double balance = Double.parseDouble(PlaceholderAPI.setPlaceholders(player, currency.getBalancePlaceholder()));
-                return (balance >= quantity);
+                return balance >= quantity;
 
             default:
                 return false;
@@ -154,7 +191,9 @@ public class MoneyManager {
         switch (currency.getCurrencyType()) {
 
             case VAULT:
-                return economy.getBalance(player);
+                Economy provider = resolveEconomy();
+                if (provider == null) return 0;
+                return provider.getBalance(player);
 
             case CUSTOM:
                 return Double.parseDouble(PlaceholderAPI.setPlaceholders(player, currency.getBalancePlaceholder()));

@@ -12,17 +12,18 @@ public class WebAuthManager {
 
     private final Map<String, LoginRequest> requestsByToken = new ConcurrentHashMap<>();
     private final Map<String, LoginRequest> requestsByCode = new ConcurrentHashMap<>();
-    
-    private RateLimiter authRateLimiter = new RateLimiter(5, 60000); // 5 attempts per 60s per IP
+
+    private RateLimiter authRateLimiter = new RateLimiter(5, 60_000); // browser/IP requests
+    private RateLimiter playerCodeRateLimiter = new RateLimiter(5, 60_000); // ingame code attempts
 
     public static class LoginRequest {
         public final String code;
         public final String privateToken;
         public final LocalDateTime expiresAt;
-        
+
         public UUID playerUuid;
         public String username;
-        public String status; // "waiting", "player_found", "confirmed", "cancelled"
+        public String status; // waiting, player_found, confirmed, cancelled
 
         public LoginRequest(String code, String privateToken, int expiresInSeconds) {
             this.code = code;
@@ -40,11 +41,19 @@ public class WebAuthManager {
         return authRateLimiter;
     }
 
+    public boolean isPlayerCodeRateLimited(UUID playerUuid) {
+        return playerUuid != null && playerCodeRateLimiter.isRateLimited(playerUuid.toString());
+    }
+
     public synchronized void reconfigureRateLimiter(int maxAttempts) {
-        this.authRateLimiter = new RateLimiter(maxAttempts, 60000);
+        int safeMax = Math.max(1, maxAttempts);
+        this.authRateLimiter = new RateLimiter(safeMax, 60_000);
+        this.playerCodeRateLimiter = new RateLimiter(safeMax, 60_000);
     }
 
     public synchronized LoginRequest createLoginRequest(int expiresInSeconds) {
+        purgeExpiredRequests();
+
         String code = SecurityUtils.generate6DigitCode();
         while (requestsByCode.containsKey(code)) {
             code = SecurityUtils.generate6DigitCode();
@@ -61,8 +70,7 @@ public class WebAuthManager {
         if (privateToken == null) return null;
         LoginRequest req = requestsByToken.get(privateToken);
         if (req != null && req.isExpired()) {
-            requestsByToken.remove(privateToken);
-            requestsByCode.remove(req.code);
+            removeRequest(privateToken);
             return null;
         }
         return req;
@@ -72,8 +80,7 @@ public class WebAuthManager {
         if (code == null) return null;
         LoginRequest req = requestsByCode.get(code);
         if (req != null && req.isExpired()) {
-            requestsByToken.remove(req.privateToken);
-            requestsByCode.remove(code);
+            removeRequest(req.privateToken);
             return null;
         }
         return req;
@@ -83,10 +90,19 @@ public class WebAuthManager {
         requestsByCode.remove(code);
     }
 
-    public void removeRequest(String privateToken) {
+    public synchronized void removeRequest(String privateToken) {
         LoginRequest req = requestsByToken.remove(privateToken);
         if (req != null) {
             requestsByCode.remove(req.code);
         }
+    }
+
+    private synchronized void purgeExpiredRequests() {
+        requestsByToken.entrySet().removeIf(entry -> {
+            LoginRequest req = entry.getValue();
+            if (!req.isExpired()) return false;
+            requestsByCode.remove(req.code);
+            return true;
+        });
     }
 }

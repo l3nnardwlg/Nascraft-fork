@@ -119,8 +119,11 @@ public class MarketEditorInvListener implements Listener {
             case 49:
                 if (event.getCursor() != null && !event.getCursor().getType().equals(Material.AIR)) {
                     ItemStack itemStack = event.getCursor().clone();
-                    for (String key : Config.getInstance().getIgnoredKeys())
-                        NBT.modify(itemStack, nbt -> nbt.removeKey(key));
+                    for (String key : Config.getInstance().getIgnoredKeys()) {
+                        NBT.modify(itemStack, nbt -> {
+                            nbt.removeKey(key);
+                        });
+                    }
                     EditorManager.getInstance().startEditing(player, itemStack);
                 } else {
                     player.sendMessage(ChatColor.RED + "Drop an item to add it to the market!");

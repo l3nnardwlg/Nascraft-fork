@@ -160,23 +160,21 @@ public class Nascraft extends JavaPlugin {
                 redisManager = null;
             }
 
-            // Re-pull persisted state periodically to recover any
-            // updates missed over pub/sub
             if (redisManager != null) {
-                long reconcileTicks = 20L * 60L * 5L; // every 5 minutes
+                long reconcileTicks = 20L * 60L * 5L;
                 FoliaScheduler.runAsyncTimer(this, this::reconcileMarketFromDatabase, reconcileTicks, reconcileTicks);
             }
         }
 
         if (config.isCommandEnabled("nascraft")) {
             new NascraftCommand();
-
             Bukkit.getPluginManager().registerEvents(new NascraftLogListener(), this);
-
-            Bukkit.getPluginManager().registerEvents(new MarketEditorInvListener(), this);
-            Bukkit.getPluginManager().registerEvents(new EditItemMenuListener(), this);
-            Bukkit.getPluginManager().registerEvents(new CategoryEditorListener(), this);
         }
+
+        // Market editor belongs to /market admin, not to the optional /nascraft command.
+        Bukkit.getPluginManager().registerEvents(new MarketEditorInvListener(), this);
+        Bukkit.getPluginManager().registerEvents(new EditItemMenuListener(), this);
+        Bukkit.getPluginManager().registerEvents(new CategoryEditorListener(), this);
 
         if (config.isCommandEnabled("market")) {
             new MarketCommand();
@@ -252,7 +250,6 @@ public class Nascraft extends JavaPlugin {
         Metrics metrics = new Metrics(this, 18404);
 
         metrics.addCustomChart(new SimplePie("discord_bridge", () -> String.valueOf(Config.getInstance().getDiscordEnabled())));
-
         metrics.addCustomChart(new SimplePie("cross_server", () -> Config.getInstance().isCrossServerEnabled() ? "Enabled" : "Disabled"));
 
         if (Config.getInstance().getDiscordEnabled())
@@ -264,7 +261,6 @@ public class Nascraft extends JavaPlugin {
             @Override
             public Map<String, Integer> call() {
                 Map<String, Integer> valueMap = new HashMap<>();
-
                 if (!Config.getInstance().getDiscordEnabled()) return valueMap;
 
                 int linkedPlayers = getLinkedPlayers();
@@ -277,7 +273,6 @@ public class Nascraft extends JavaPlugin {
                 int counter = 0;
                 for (Player player : Bukkit.getOnlinePlayers())
                     if (Services.get().links().getUserDiscordID(player.getUniqueId()) != null) counter++;
-
                 return counter;
             }
         }));
@@ -289,10 +284,8 @@ public class Nascraft extends JavaPlugin {
 
     private boolean setupEconomy() {
         if (getServer().getPluginManager().getPlugin("Vault") == null) { return false; }
-
         RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
-        if (rsp == null) { return false; }
-
+        if (rsp == null) return false;
         economy = rsp.getProvider();
         return economy != null;
     }
@@ -305,9 +298,7 @@ public class Nascraft extends JavaPlugin {
     }
 
     private void createImagesFolder() {
-
         File imagesFolder = new File(getDataFolder(), "images");
-
         if (!imagesFolder.exists()) {
             boolean success = imagesFolder.mkdirs();
             if (!success) getLogger().warning("Failed to create images folder.");

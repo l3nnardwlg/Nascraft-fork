@@ -24,8 +24,7 @@ import java.util.List;
 public class MarketEditor {
 
     private int verticalOffset, horizontalOffset;
-
-    private Player player;
+    private final Player player;
 
     public MarketEditor(Player player) {
         this.player = player;
@@ -36,24 +35,21 @@ public class MarketEditor {
 
     public void open() {
         Inventory inventory = Bukkit.createInventory(player, 54, "§8§lAdmin view: Market");
-
         insertFillingPanes(inventory);
-        insertArrows(inventory);
+        insertNavigation(inventory);
         insertHelpHead(inventory);
         insertButtons(inventory);
         insertItems(inventory);
-
         player.openInventory(inventory);
     }
 
     public void insertFillingPanes(Inventory inventory) {
-
         ItemStack blackFiller = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
         ItemMeta metaBlack = blackFiller.getItemMeta();
         metaBlack.setDisplayName(" ");
         blackFiller.setItemMeta(metaBlack);
 
-        for(int i : new int[]{1, 2, 3, 5, 6, 47, 48, 50, 51}) {
+        for (int i : new int[]{1, 2, 3, 5, 6, 47, 51, 52, 53}) {
             inventory.setItem(i, blackFiller);
         }
 
@@ -61,56 +57,61 @@ public class MarketEditor {
         ItemMeta meta = closeButton.getItemMeta();
         meta.setDisplayName(ChatColor.RED + "§lCLOSE");
         closeButton.setItemMeta(meta);
-
         inventory.setItem(8, closeButton);
     }
 
-    public void insertArrows(Inventory inventory) {
+    public void insertNavigation(Inventory inventory) {
+        inventory.setItem(0, navigationItem(
+                canScrollUp() ? Material.FIREWORK_ROCKET : Material.BARRIER,
+                canScrollUp() ? ChatColor.LIGHT_PURPLE + "§lSCROLL UP" : ChatColor.RED + "§lTOP REACHED"
+        ));
 
-        ItemStack arrow = new ItemStack(Material.ARROW);
-        ItemMeta meta = arrow.getItemMeta();
-        meta.setDisplayName(ChatColor.LIGHT_PURPLE + "§lSCROLL UP");
-        arrow.setItemMeta(meta);
-        inventory.setItem(0, arrow);
+        inventory.setItem(45, navigationItem(
+                canScrollDown() ? Material.ANVIL : Material.BARRIER,
+                canScrollDown() ? ChatColor.LIGHT_PURPLE + "§lSCROLL DOWN" : ChatColor.RED + "§lBOTTOM REACHED"
+        ));
 
-        meta.setDisplayName(ChatColor.LIGHT_PURPLE + "§lSCROLL DOWN");
-        arrow.setItemMeta(meta);
-        inventory.setItem(45, arrow);
+        inventory.setItem(48, navigationItem(
+                canScrollLeft() ? Material.ARROW : Material.BARRIER,
+                canScrollLeft() ? ChatColor.LIGHT_PURPLE + "§l< LEFT" : ChatColor.RED + "§lLEFT EDGE"
+        ));
 
-        meta.setDisplayName(ChatColor.LIGHT_PURPLE + "§l< LEFT");
-        arrow.setItemMeta(meta);
-        inventory.setItem(52, arrow);
+        inventory.setItem(50, navigationItem(
+                canScrollRight() ? Material.ARROW : Material.BARRIER,
+                canScrollRight() ? ChatColor.LIGHT_PURPLE + "§lRIGHT >" : ChatColor.RED + "§lRIGHT EDGE"
+        ));
+    }
 
-        meta.setDisplayName(ChatColor.LIGHT_PURPLE + "§lRIGHT >");
-        arrow.setItemMeta(meta);
-        inventory.setItem(53, arrow);
+    private ItemStack navigationItem(Material material, String name) {
+        ItemStack stack = new ItemStack(material);
+        ItemMeta meta = stack.getItemMeta();
+        meta.setDisplayName(name);
+        stack.setItemMeta(meta);
+        return stack;
     }
 
     public void insertHelpHead(Inventory inventory) {
-
         ItemStack info = new ItemStack(Material.CHEST);
         ItemMeta meta = info.getItemMeta();
         meta.setDisplayName(ChatColor.DARK_PURPLE + "§lMARKET EDITOR");
         meta.setLore(Arrays.asList(
                 ChatColor.GRAY + "Add, remove and configure market items.",
-                ChatColor.GRAY + "Drop an item onto the hopper to add it.",
+                ChatColor.GRAY + "Drop an item directly onto the hopper to add it.",
                 "",
                 ChatColor.YELLOW + "Shift + Left Click: toggle buying",
                 ChatColor.YELLOW + "Shift + Right Click: toggle selling"
         ));
         info.setItemMeta(meta);
-
         inventory.setItem(4, info);
     }
 
     public void insertButtons(Inventory inventory) {
-
         ItemStack newItem = new ItemStack(Material.HOPPER);
         ItemMeta metaNewItem = newItem.getItemMeta();
         metaNewItem.setDisplayName(ChatColor.BLUE + "§lADD ITEM TO MARKET");
         metaNewItem.setLore(Arrays.asList(
-                ChatColor.GRAY + "Drop here an item to configure",
-                ChatColor.GRAY + "it as a new item."
+                ChatColor.GRAY + "Drop an item here to configure it",
+                ChatColor.GRAY + "as a new market item."
         ));
         newItem.setItemMeta(metaNewItem);
         inventory.setItem(49, newItem);
@@ -148,94 +149,111 @@ public class MarketEditor {
     }
 
     public void insertItems(Inventory inventory) {
+        for (int slot = 9; slot <= 44; slot++) inventory.clear(slot);
 
         List<Category> categories = new ArrayList<>();
         List<Category> allCategories = MarketManager.getInstance().getCategories();
 
         for (int i = 0; i <= 3; i++) {
-            if (allCategories.size() > i + verticalOffset)
-                categories.add(MarketManager.getInstance().getCategories().get(i + verticalOffset));
+            if (allCategories.size() > i + verticalOffset) {
+                categories.add(allCategories.get(i + verticalOffset));
+            }
         }
 
-        int j = 0;
-
+        int row = 0;
         for (Category category : categories) {
-
             ItemStack categoryItemStack = new ItemStack(category.getMaterial());
-            ItemMeta CategoryMeta = categoryItemStack.getItemMeta();
-
-            CategoryMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Category: " + category.getDisplayName());
-            CategoryMeta.setLore(Arrays.asList(ChatColor.GRAY + "Identifier: " + ChatColor.GOLD + category.getIdentifier(),
-                    "", ChatColor.GREEN + "§lCLICK TO EDIT"));
-
-            categoryItemStack.setItemMeta(CategoryMeta);
-            inventory.setItem(9 + 9*j, categoryItemStack);
+            ItemMeta categoryMeta = categoryItemStack.getItemMeta();
+            categoryMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Category: " + category.getDisplayName());
+            categoryMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Identifier: " + ChatColor.GOLD + category.getIdentifier(),
+                    "",
+                    ChatColor.GREEN + "§lCLICK TO EDIT"
+            ));
+            categoryItemStack.setItemMeta(categoryMeta);
+            inventory.setItem(9 + 9 * row, categoryItemStack);
 
             List<Item> items = new ArrayList<>();
-            if (horizontalOffset < category.getNumberOfItems())
+            if (horizontalOffset < category.getNumberOfItems()) {
                 items = new ArrayList<>(category.getItems().subList(horizontalOffset, category.getNumberOfItems()));
-
-            while (items.size() < 9) items.add(null);
-
-            for (int k = 1; k <= 8; k++) {
-
-                Item item = items.get(k-1);
-
-                if (item == null) {
-                    inventory.clear((j+1)*9 + k);
-                } else {
-                    ItemStack itemStack = item.getItemStack();
-                    ItemMeta meta = itemStack.getItemMeta();
-                    meta.setDisplayName(ChatColor.LIGHT_PURPLE + "Alias: " + item.getName());
-
-                    Component price = MiniMessage.miniMessage().deserialize(Formatter.format(item.getCurrency(), item.getPrice().getInitialValue(), Style.ROUND_BASIC));
-                    Component support = MiniMessage.miniMessage().deserialize(Formatter.format(item.getCurrency(), item.getPrice().getSupport(), Style.ROUND_BASIC));
-                    Component resistance = MiniMessage.miniMessage().deserialize(Formatter.format(item.getCurrency(), item.getPrice().getResistance(), Style.ROUND_BASIC));
-
-                    boolean buyEnabled = Config.getInstance().getItemsFileConfiguration()
-                            .getBoolean("items." + item.getIdentifier() + ".buy-enabled", true);
-                    boolean sellEnabled = Config.getInstance().getItemsFileConfiguration()
-                            .getBoolean("items." + item.getIdentifier() + ".sell-enabled", true);
-
-                    meta.setLore(Arrays.asList(
-                            ChatColor.GRAY + "Initial price: " + LegacyComponentSerializer.legacySection().serialize(price),
-                            ChatColor.GRAY + "Elasticity: " + ChatColor.GREEN + item.getPrice().getElasticity(),
-                            ChatColor.GRAY + "Noise Intensity: " + ChatColor.GREEN + item.getPrice().getNoiseIntensity(),
-                            ChatColor.GRAY + "Support: " + (item.getPrice().getSupport() == 0 ? ChatColor.RED + "DISABLED" : LegacyComponentSerializer.legacySection().serialize(support)),
-                            ChatColor.GRAY + "Resistance: " + (item.getPrice().getResistance() == 0 ? ChatColor.RED + "DISABLED" : LegacyComponentSerializer.legacySection().serialize(resistance)),
-                            "",
-                            ChatColor.GRAY + "Buying: " + (buyEnabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
-                            ChatColor.GRAY + "Selling: " + (sellEnabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
-                            "",
-                            ChatColor.GREEN + "§lCLICK TO EDIT",
-                            ChatColor.YELLOW + "Shift + Left: toggle buying",
-                            ChatColor.YELLOW + "Shift + Right: toggle selling"
-                    ));
-
-                    itemStack.setItemMeta(meta);
-                    inventory.setItem(((j+1)*9) + k, itemStack);
-                }
             }
-            j++;
+            while (items.size() < 8) items.add(null);
+
+            for (int column = 1; column <= 8; column++) {
+                Item item = items.get(column - 1);
+                if (item == null) continue;
+
+                ItemStack itemStack = item.getItemStack().clone();
+                ItemMeta meta = itemStack.getItemMeta();
+                meta.setDisplayName(ChatColor.LIGHT_PURPLE + "Alias: " + item.getName());
+
+                Component price = MiniMessage.miniMessage().deserialize(Formatter.format(item.getCurrency(), item.getPrice().getInitialValue(), Style.ROUND_BASIC));
+                Component support = MiniMessage.miniMessage().deserialize(Formatter.format(item.getCurrency(), item.getPrice().getSupport(), Style.ROUND_BASIC));
+                Component resistance = MiniMessage.miniMessage().deserialize(Formatter.format(item.getCurrency(), item.getPrice().getResistance(), Style.ROUND_BASIC));
+
+                boolean buyEnabled = Config.getInstance().getItemsFileConfiguration()
+                        .getBoolean("items." + item.getIdentifier() + ".buy-enabled", true);
+                boolean sellEnabled = Config.getInstance().getItemsFileConfiguration()
+                        .getBoolean("items." + item.getIdentifier() + ".sell-enabled", true);
+
+                meta.setLore(Arrays.asList(
+                        ChatColor.GRAY + "Initial price: " + LegacyComponentSerializer.legacySection().serialize(price),
+                        ChatColor.GRAY + "Elasticity: " + ChatColor.GREEN + item.getPrice().getElasticity(),
+                        ChatColor.GRAY + "Noise Intensity: " + ChatColor.GREEN + item.getPrice().getNoiseIntensity(),
+                        ChatColor.GRAY + "Support: " + (item.getPrice().getSupport() == 0 ? ChatColor.RED + "DISABLED" : LegacyComponentSerializer.legacySection().serialize(support)),
+                        ChatColor.GRAY + "Resistance: " + (item.getPrice().getResistance() == 0 ? ChatColor.RED + "DISABLED" : LegacyComponentSerializer.legacySection().serialize(resistance)),
+                        "",
+                        ChatColor.GRAY + "Buying: " + (buyEnabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
+                        ChatColor.GRAY + "Selling: " + (sellEnabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
+                        "",
+                        ChatColor.GREEN + "§lCLICK TO EDIT",
+                        ChatColor.YELLOW + "Shift + Left: toggle buying",
+                        ChatColor.YELLOW + "Shift + Right: toggle selling"
+                ));
+
+                itemStack.setItemMeta(meta);
+                inventory.setItem(((row + 1) * 9) + column, itemStack);
+            }
+            row++;
         }
+
+        insertNavigation(inventory);
+    }
+
+    public boolean canScrollUp() {
+        return verticalOffset > 0;
+    }
+
+    public boolean canScrollDown() {
+        return verticalOffset + 4 < MarketManager.getInstance().getCategories().size();
+    }
+
+    public boolean canScrollLeft() {
+        return horizontalOffset > 0;
+    }
+
+    public boolean canScrollRight() {
+        int biggestCategory = 0;
+        for (Category category : MarketManager.getInstance().getCategories()) {
+            biggestCategory = Math.max(biggestCategory, category.getNumberOfItems());
+        }
+        return horizontalOffset + 8 < biggestCategory;
     }
 
     public void increaseVerticalOffset() {
-        if (MarketManager.getInstance().getCategories().size() - 4 > verticalOffset)
-            verticalOffset++;
+        if (canScrollDown()) verticalOffset++;
     }
 
     public void increaseHorizontalOffset() {
-        int biggestCategory = 0;
-        for (Category category : MarketManager.getInstance().getCategories())
-            if (category.getNumberOfItems() > biggestCategory) biggestCategory = category.getNumberOfItems();
-        if (horizontalOffset < biggestCategory-8) horizontalOffset++;
+        if (canScrollRight()) horizontalOffset++;
     }
 
-    public void decreaseVerticalOffset() { if (verticalOffset > 0) verticalOffset--; }
+    public void decreaseVerticalOffset() {
+        if (canScrollUp()) verticalOffset--;
+    }
 
     public void decreaseHorizontalOffset() {
-        if (horizontalOffset > 0) horizontalOffset--;
+        if (canScrollLeft()) horizontalOffset--;
     }
 
     public int getVerticalOffset() { return verticalOffset; }

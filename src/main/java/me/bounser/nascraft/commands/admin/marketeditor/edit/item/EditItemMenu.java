@@ -1,6 +1,5 @@
 package me.bounser.nascraft.commands.admin.marketeditor.edit.item;
 
-import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditor;
 import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditorManager;
 import me.bounser.nascraft.config.Config;
 import me.bounser.nascraft.managers.ImagesManager;
@@ -40,8 +39,10 @@ public class EditItemMenu {
     private Category prevCategory;
     private Category category;
     private Item item;
-    private Player player;
+    private final Player player;
     private Currency currency;
+    private boolean buyEnabled;
+    private boolean sellEnabled;
 
     public EditItemMenu(Player player, ItemStack itemStack) {
         this.player = player;
@@ -53,9 +54,15 @@ public class EditItemMenu {
         noiseIntensity = 1;
         support = 0;
         resistance = 0;
+        buyEnabled = true;
+        sellEnabled = true;
         currency = CurrenciesManager.getInstance().getDefaultCurrency();
+        if (MarketManager.getInstance().getCategories().isEmpty()) {
+            player.sendMessage(ChatColor.RED + "Create at least one category before adding an item.");
+            return;
+        }
         prevCategory = MarketManager.getInstance().getCategories().get(0);
-        category = MarketManager.getInstance().getCategories().get(0);
+        category = prevCategory;
         open();
     }
 
@@ -72,10 +79,17 @@ public class EditItemMenu {
         currency = item.getCurrency();
         prevCategory = item.getCategory();
         category = item.getCategory();
+        FileConfiguration items = Config.getInstance().getItemsFileConfiguration();
+        buyEnabled = items.getBoolean("items." + item.getIdentifier() + ".buy-enabled", true);
+        sellEnabled = items.getBoolean("items." + item.getIdentifier() + ".sell-enabled", true);
         open();
     }
 
     public void open() {
+        if (itemStack == null || itemStack.getType() == Material.AIR || category == null || currency == null) {
+            player.sendMessage(ChatColor.RED + "Cannot open item editor because its state is incomplete.");
+            return;
+        }
         Inventory inventory = Bukkit.createInventory(player, 27, "§8§lEditing Item");
         insertPanes(inventory);
         insertOptions(inventory);
@@ -92,12 +106,16 @@ public class EditItemMenu {
     public float getNoiseIntensity() { return noiseIntensity; }
     public double getSupport() { return support; }
     public double getResistance() { return resistance; }
+    public boolean isBuyEnabled() { return buyEnabled; }
+    public boolean isSellEnabled() { return sellEnabled; }
 
     public void insertItem(ItemStack itemStack, Inventory inventory) {
         ItemStack displayItemStack = itemStack.clone();
         ItemMeta meta = displayItemStack.getItemMeta();
         if (meta.hasLore()) {
             List<String> lore = meta.getLore();
+            if (lore == null) lore = new java.util.ArrayList<>();
+            else lore = new java.util.ArrayList<>(lore);
             lore.add("");
             lore.add(ChatColor.GREEN + "§lCLICK TO CHANGE");
             meta.setLore(lore);
@@ -119,7 +137,7 @@ public class EditItemMenu {
         metaGray.setDisplayName(" ");
         grayFiller.setItemMeta(metaGray);
 
-        for(int i : new int[]{3, 12, 21, 6, 7, 8, 16, 24, 25, 26}) inventory.setItem(i, blackFiller);
+        for(int i : new int[]{3, 12, 21, 7, 8, 16, 26}) inventory.setItem(i, blackFiller);
         for(int i : new int[]{0, 1, 2, 18, 19, 20}) inventory.setItem(i, grayFiller);
 
         ItemStack closeButton = new ItemStack(Material.RED_STAINED_GLASS_PANE);
@@ -147,7 +165,7 @@ public class EditItemMenu {
         inventory.setItem(4, getItemStackOfOption(Material.GOLD_INGOT,
                 "Initial Price " + ChatColor.UNDERLINE + "(REQUIRED)",
                 Arrays.asList(ChatColor.GRAY + "Value: " + LegacyComponentSerializer.legacySection().serialize(priceComponent),
-                        "", ChatColor.GRAY + "Click to enter a new value.", "",
+                        "", ChatColor.GRAY + "Must be greater than zero.", "",
                         ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO EDIT")));
 
         inventory.setItem(5, getItemStackOfOption(Material.NAME_TAG, "Alias",
@@ -179,6 +197,13 @@ public class EditItemMenu {
         inventory.setItem(15, getItemStackOfOption(Material.CHEST, "Category",
                 Arrays.asList(ChatColor.GRAY + "Category: " + ChatColor.GREEN + category.getIdentifier() + ChatColor.GRAY + " - " + ChatColor.GOLD + category.getDisplayName(),
                         "", ChatColor.GREEN + "Left click: next category", ChatColor.YELLOW + "Right click: previous category")));
+
+        inventory.setItem(24, getItemStackOfOption(buyEnabled ? Material.LIME_DYE : Material.GRAY_DYE, "Buying",
+                Arrays.asList(ChatColor.GRAY + "Status: " + (buyEnabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"), "",
+                        ChatColor.GREEN + "Click to toggle")));
+        inventory.setItem(25, getItemStackOfOption(sellEnabled ? Material.LIME_DYE : Material.GRAY_DYE, "Selling",
+                Arrays.asList(ChatColor.GRAY + "Status: " + (sellEnabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"), "",
+                        ChatColor.GREEN + "Click to toggle")));
     }
 
     public static ItemStack getItemStackOfOption(Material material, String displayName, List<String> value) {
@@ -190,17 +215,45 @@ public class EditItemMenu {
         return paper;
     }
 
-    public void setItemStack(ItemStack itemStack) { this.itemStack = itemStack; }
+    public void setItemStack(ItemStack itemStack) {
+        if (itemStack == null || itemStack.getType() == Material.AIR) return;
+        this.itemStack = itemStack.clone();
+        this.itemStack.setAmount(1);
+    }
     public void setInitialPrice(float initialPrice) { this.initialPrice = initialPrice; }
     public void setAlias(String alias) { this.alias = alias; }
     public void setElasticity(float elasticity) { this.elasticity = elasticity; }
     public void setNoiseIntensity(float noiseIntensity) { this.noiseIntensity = noiseIntensity; }
     public void setSupport(float support) { this.support = support; }
     public void setResistance(float resistance) { this.resistance = resistance; }
-    public void setCategory(Category category) { this.category = category; }
-    public void setCurrency(Currency currency) { this.currency = currency; }
+    public void setCategory(Category category) { if (category != null) this.category = category; }
+    public void setCurrency(Currency currency) { if (currency != null) this.currency = currency; }
+    public void toggleBuyEnabled() { buyEnabled = !buyEnabled; }
+    public void toggleSellEnabled() { sellEnabled = !sellEnabled; }
 
     public void save() {
+        if (itemStack == null || itemStack.getType() == Material.AIR) {
+            player.sendMessage(ChatColor.RED + "Select a valid item before saving.");
+            return;
+        }
+        if (alias == null || alias.trim().isEmpty()) {
+            player.sendMessage(ChatColor.RED + "Alias cannot be empty.");
+            return;
+        }
+        if (!Double.isFinite(initialPrice) || initialPrice <= 0) {
+            player.sendMessage(ChatColor.RED + "Initial price must be greater than zero.");
+            return;
+        }
+        if (!Float.isFinite(elasticity) || elasticity < 0 || !Float.isFinite(noiseIntensity) || noiseIntensity < 0
+                || !Double.isFinite(support) || support < 0 || !Double.isFinite(resistance) || resistance < 0) {
+            player.sendMessage(ChatColor.RED + "One or more market values are invalid.");
+            return;
+        }
+        if (category == null || currency == null) {
+            player.sendMessage(ChatColor.RED + "Category and currency are required.");
+            return;
+        }
+
         FileConfiguration items = Config.getInstance().getItemsFileConfiguration();
         String identifier;
 
@@ -211,18 +264,17 @@ public class EditItemMenu {
             identifier = count == 0 ? itemStack.getType().toString().toLowerCase() : itemStack.getType().toString().toLowerCase() + count;
         } else identifier = item.getIdentifier();
 
-        items.set("items." + identifier + ".alias", alias);
+        items.set("items." + identifier + ".alias", alias.trim());
         items.set("items." + identifier + ".initial-price", initialPrice);
         items.set("items." + identifier + ".elasticity", elasticity);
         items.set("items." + identifier + ".noise-intensity", noiseIntensity);
         items.set("items." + identifier + ".support", support == 0 ? null : support);
         items.set("items." + identifier + ".resistance", resistance == 0 ? null : resistance);
+        items.set("items." + identifier + ".buy-enabled", buyEnabled);
+        items.set("items." + identifier + ".sell-enabled", sellEnabled);
 
-        if (itemStack != null && itemStack.getType() != Material.AIR) {
-            if (item != null) item.setItemStack(itemStack);
-            items.set("items." + identifier + ".item-stack", NBT.itemStackToNBT(itemStack).toString());
-        }
-
+        if (item != null) item.setItemStack(itemStack);
+        items.set("items." + identifier + ".item-stack", NBT.itemStackToNBT(itemStack).toString());
         items.set("items." + identifier + ".currency",
                 currency.equals(CurrenciesManager.getInstance().getDefaultCurrency()) ? null : currency.getCurrencyIdentifier());
 
@@ -246,22 +298,23 @@ public class EditItemMenu {
         if (item != null) {
             item.setCategory(category);
             item.setCurrency(currency);
-            item.changeProperties(initialPrice, alias, elasticity, noiseIntensity, support, resistance);
+            item.changeProperties(initialPrice, alias.trim(), elasticity, noiseIntensity, support, resistance);
             if (!prevCategory.getIdentifier().equals(category.getIdentifier())) {
                 category.addItem(item);
                 prevCategory.removeItem(item);
                 prevCategory = category;
             }
-            player.sendMessage(ChatColor.LIGHT_PURPLE + "Property changes saved!");
+            player.sendMessage(ChatColor.LIGHT_PURPLE + "Item changes saved successfully.");
         } else {
-            item = new Item(itemStack, identifier, alias, category, ImagesManager.getInstance().getImage(identifier));
+            item = new Item(itemStack, identifier, alias.trim(), category, ImagesManager.getInstance().getImage(identifier));
             item.setCurrency(currency);
             category.addItem(item);
             MarketManager.getInstance().addItem(item);
             prevCategory = category;
-            player.sendMessage(ChatColor.LIGHT_PURPLE + "New item saved!");
+            player.sendMessage(ChatColor.LIGHT_PURPLE + "New market item saved successfully.");
         }
 
+        EditorManager.getInstance().clearEditing(player);
         if (MarketEditorManager.getInstance().getMarketEditorFromPlayer(player) != null) {
             MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open();
         }

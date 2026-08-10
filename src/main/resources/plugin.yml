@@ -7,6 +7,11 @@ softdepend: [ Vault, PlaceholderAPI, AdvancedGUI, DiscordSRV ]
 authors: [ bounser, agentfrettchen ]
 description: Market valuations in minecraft
 
+permissions:
+  nascraft.market.admin:
+    description: Allows access to /market admin and the in-game market editor
+    default: op
+
 libraries:
   - org.xerial:sqlite-jdbc:3.43.0.0
   - com.mysql:mysql-connector-j:8.4.0

@@ -5,6 +5,9 @@ import me.bounser.nascraft.commands.Command;
 import me.bounser.nascraft.config.lang.Lang;
 import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.inventorygui.*;
+import me.bounser.nascraft.inventorygui.admin.MarketAdminListener;
+import me.bounser.nascraft.inventorygui.admin.MarketAdminMenu;
+import me.bounser.nascraft.market.MarketAvailabilityListener;
 import me.bounser.nascraft.market.MarketManager;
 import me.bounser.nascraft.config.Config;
 import me.bounser.nascraft.market.resources.Category;
@@ -30,6 +33,7 @@ public class MarketCommand extends Command {
                 "Direct access to the market",
                 "nascraft.market"
         );
+        Bukkit.getPluginManager().registerEvents(new MarketAvailabilityListener(), Nascraft.getInstance());
     }
 
     @Override
@@ -38,6 +42,15 @@ public class MarketCommand extends Command {
         if(sender instanceof Player) {
 
             Player player = (Player) sender;
+
+            if (args.length == 1 && args[0].equalsIgnoreCase("admin")) {
+                if (!player.hasPermission(MarketAdminListener.PERMISSION)) {
+                    Lang.get().message(player, Message.NO_PERMISSION);
+                    return;
+                }
+                MarketAdminMenu.open(player);
+                return;
+            }
 
             if (!player.hasPermission("nascraft.market") && Config.getInstance().getMarketPermissionRequirement()) {
                 Lang.get().message(player, Message.NO_PERMISSION);
@@ -218,9 +231,12 @@ public class MarketCommand extends Command {
 
         switch (args.length) {
             case 1:
-                return StringUtil.copyPartialMatches(args[0], Arrays.asList("buy", "sell", "webcode", "category", "item"), new ArrayList<>());
+                List<String> options = new ArrayList<>(Arrays.asList("buy", "sell", "webcode", "category", "item"));
+                if (sender.hasPermission(MarketAdminListener.PERMISSION)) options.add("admin");
+                return StringUtil.copyPartialMatches(args[0], options, new ArrayList<>());
             case 2:
                 if (args[0].equalsIgnoreCase("webcode")) return Collections.singletonList("123456");
+                if (args[0].equalsIgnoreCase("admin")) return Collections.emptyList();
                 return StringUtil.copyPartialMatches(args[1], MarketManager.getInstance().getAllItemsAndChildsIdentifiers(), new ArrayList<>());
             case 3:
                 return Collections.singletonList("quantity");

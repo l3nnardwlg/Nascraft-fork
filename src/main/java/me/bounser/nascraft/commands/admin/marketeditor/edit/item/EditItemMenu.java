@@ -87,6 +87,9 @@ public class EditItemMenu {
     public Currency getCurrency() { return currency; }
     public Category getCategory() { return category; }
     public double getInitialPrice() { return initialPrice; }
+    public String getAlias() { return alias; }
+    public float getElasticity() { return elasticity; }
+    public float getNoiseIntensity() { return noiseIntensity; }
     public double getSupport() { return support; }
     public double getResistance() { return resistance; }
 
@@ -134,6 +137,7 @@ public class EditItemMenu {
         ItemStack deletePanel = new ItemStack(Material.RED_STAINED_GLASS_PANE);
         ItemMeta metaDelete = deletePanel.getItemMeta();
         metaDelete.setDisplayName(ChatColor.RED + "§lDELETE ITEM");
+        if (item == null) metaDelete.setLore(List.of(ChatColor.GRAY + "Unsaved item: cancel instead of delete."));
         deletePanel.setItemMeta(metaDelete);
         inventory.setItem(17, deletePanel);
     }
@@ -143,54 +147,33 @@ public class EditItemMenu {
         inventory.setItem(4, getItemStackOfOption(Material.GOLD_INGOT,
                 "Initial Price " + ChatColor.UNDERLINE + "(REQUIRED)",
                 Arrays.asList(ChatColor.GRAY + "Value: " + LegacyComponentSerializer.legacySection().serialize(priceComponent),
-                        "", ChatColor.GRAY + "The initial price of the item gives a point",
-                        ChatColor.GRAY + "of initial stability at neutral internal stock (0)", "",
-                        ChatColor.RED + "⚠ CAUTION ⚠ Changing this value will alter the",
-                        ChatColor.RED + "shape of the price curve, changing the current price.", "",
+                        "", ChatColor.GRAY + "Click to enter a new value.", "",
                         ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO EDIT")));
 
         inventory.setItem(5, getItemStackOfOption(Material.NAME_TAG, "Alias",
                 Arrays.asList(ChatColor.GRAY + "Alias: " + ChatColor.GREEN + alias, "",
-                        ChatColor.GRAY + "This is the name that will be displayed to players.", "",
                         ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO EDIT")));
 
         inventory.setItem(6, getItemStackOfOption(Material.GOLD_NUGGET, "Currency",
                 Arrays.asList(ChatColor.GRAY + "Currency: " + ChatColor.GREEN + currency.getCurrencyIdentifier(), "",
-                        ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO SWITCH BETWEEN CURRENCIES")));
+                        ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO SWITCH")));
 
         inventory.setItem(13, getItemStackOfOption(Material.SLIME_BALL, "Elasticity",
                 Arrays.asList(ChatColor.GRAY + "Value: " + ChatColor.GREEN + elasticity, "",
-                        ChatColor.GRAY + "This value determines the magnitude of the",
-                        ChatColor.GRAY + "changes due to player transactions. Has decimal precision.",
-                        ChatColor.GRAY + "A bigger value means that when a player buys or sells",
-                        ChatColor.GRAY + "the price will react with a bigger change. Conversely",
-                        ChatColor.GRAY + "when the value is lower this changes will be smaller.", "",
-                        ChatColor.RED + "⚠ CAUTION ⚠ Changing this value will alter the",
-                        ChatColor.RED + "shape of the price curve, changing the current price.", "",
                         ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO EDIT")));
 
         inventory.setItem(14, getItemStackOfOption(Material.COMPARATOR, "Noise Intensity",
                 Arrays.asList(ChatColor.GRAY + "Value: " + ChatColor.GREEN + noiseIntensity, "",
-                        ChatColor.GRAY + "This value determines the sensibility of the",
-                        ChatColor.GRAY + "item to random changes. Has decimal precision.",
-                        ChatColor.GRAY + "A bigger value means that the price will fluctuate",
-                        ChatColor.GRAY + "in bigger quantities than when the value is lower.", "",
-                        ChatColor.RED + "⚠ CAUTION ⚠ High values can make the item",
-                        ChatColor.RED + "extremely volatile.", "",
                         ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO EDIT")));
 
         Component supportComponent = MiniMessage.miniMessage().deserialize(Formatter.format(currency, support, Style.ROUND_BASIC));
         inventory.setItem(22, getItemStackOfOption(Material.BEDROCK, "Support",
                 Arrays.asList(ChatColor.GRAY + "Value: " + (support == 0 ? ChatColor.RED + "DISABLED" : LegacyComponentSerializer.legacySection().serialize(supportComponent)), "",
-                        ChatColor.GRAY + "If the noise is enabled, then the price of the",
-                        ChatColor.GRAY + "item will slowly tend to stay " + ChatColor.UNDERLINE + "ABOVE this value.", "",
                         ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO EDIT")));
 
         Component resistanceComponent = MiniMessage.miniMessage().deserialize(Formatter.format(currency, resistance, Style.ROUND_BASIC));
         inventory.setItem(23, getItemStackOfOption(Material.WHITE_WOOL, "Resistance",
                 Arrays.asList(ChatColor.GRAY + "Value: " + (resistance == 0 ? ChatColor.RED + "DISABLED" : LegacyComponentSerializer.legacySection().serialize(resistanceComponent)), "",
-                        ChatColor.GRAY + "If the noise is enabled, then the price of the",
-                        ChatColor.GRAY + "item will slowly tend to stay " + ChatColor.UNDERLINE + "BELOW this value.", "",
                         ChatColor.GREEN + "" + ChatColor.BOLD + "CLICK TO EDIT")));
 
         inventory.setItem(15, getItemStackOfOption(Material.CHEST, "Category",
@@ -223,8 +206,8 @@ public class EditItemMenu {
 
         if (item == null) {
             int count = 0;
-            for (Item item : MarketManager.getInstance().getAllItems())
-                if (item.getItemStack().getType().equals(itemStack.getType())) count++;
+            for (Item existing : MarketManager.getInstance().getAllItems())
+                if (existing.getItemStack().getType().equals(itemStack.getType())) count++;
             identifier = count == 0 ? itemStack.getType().toString().toLowerCase() : itemStack.getType().toString().toLowerCase() + count;
         } else identifier = item.getIdentifier();
 
@@ -232,17 +215,16 @@ public class EditItemMenu {
         items.set("items." + identifier + ".initial-price", initialPrice);
         items.set("items." + identifier + ".elasticity", elasticity);
         items.set("items." + identifier + ".noise-intensity", noiseIntensity);
-        if (support != 0) items.set("items." + identifier + ".support", support);
-        if (resistance != 0) items.set("items." + identifier + ".resistance", resistance);
+        items.set("items." + identifier + ".support", support == 0 ? null : support);
+        items.set("items." + identifier + ".resistance", resistance == 0 ? null : resistance);
 
         if (itemStack != null && itemStack.getType() != Material.AIR) {
             if (item != null) item.setItemStack(itemStack);
             items.set("items." + identifier + ".item-stack", NBT.itemStackToNBT(itemStack).toString());
         }
 
-        if (!currency.equals(CurrenciesManager.getInstance().getDefaultCurrency())) {
-            items.set("items." + identifier + ".currency", currency.getCurrencyIdentifier());
-        }
+        items.set("items." + identifier + ".currency",
+                currency.equals(CurrenciesManager.getInstance().getDefaultCurrency()) ? null : currency.getCurrencyIdentifier());
 
         FileConfiguration categories = Config.getInstance().getCategoriesFileConfiguration();
         List<String> itemsOfPrevCategory = categories.getStringList("categories." + prevCategory.getIdentifier() + ".items");
@@ -257,7 +239,8 @@ public class EditItemMenu {
             categories.save(Config.getInstance().getCategoriesFile());
             items.save(Config.getInstance().getItemsFile());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            player.sendMessage(ChatColor.RED + "Could not save market configuration: " + e.getMessage());
+            return;
         }
 
         if (item != null) {
@@ -267,21 +250,29 @@ public class EditItemMenu {
             if (!prevCategory.getIdentifier().equals(category.getIdentifier())) {
                 category.addItem(item);
                 prevCategory.removeItem(item);
+                prevCategory = category;
             }
             player.sendMessage(ChatColor.LIGHT_PURPLE + "Property changes saved!");
         } else {
-            Item item = new Item(itemStack, identifier, alias, category, ImagesManager.getInstance().getImage(identifier));
+            item = new Item(itemStack, identifier, alias, category, ImagesManager.getInstance().getImage(identifier));
             item.setCurrency(currency);
             category.addItem(item);
             MarketManager.getInstance().addItem(item);
+            prevCategory = category;
             player.sendMessage(ChatColor.LIGHT_PURPLE + "New item saved!");
         }
 
-        MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open();
+        if (MarketEditorManager.getInstance().getMarketEditorFromPlayer(player) != null) {
+            MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open();
+        }
     }
 
     public void removeItem() {
-        if (item == null) new MarketEditor(player);
+        if (item == null) {
+            player.sendMessage(ChatColor.RED + "This item has not been saved yet. Use Cancel instead.");
+            return;
+        }
+
         MarketManager.getInstance().removeItem(item);
         prevCategory.removeItem(item);
         FileConfiguration items = Config.getInstance().getItemsFileConfiguration();
@@ -294,8 +285,12 @@ public class EditItemMenu {
             categories.save(Config.getInstance().getCategoriesFile());
             items.save(Config.getInstance().getItemsFile());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            player.sendMessage(ChatColor.RED + "Could not delete item: " + e.getMessage());
+            return;
         }
-        MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open();
+        EditorManager.getInstance().clearEditing(player);
+        if (MarketEditorManager.getInstance().getMarketEditorFromPlayer(player) != null) {
+            MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open();
+        }
     }
 }

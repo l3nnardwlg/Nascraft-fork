@@ -30,6 +30,7 @@ import me.bounser.nascraft.discord.DiscordBot;
 import me.bounser.nascraft.commands.discord.LinkCommand;
 import me.bounser.nascraft.discord.linking.LinkingMethod;
 import me.bounser.nascraft.inventorygui.InventoryListener;
+import me.bounser.nascraft.inventorygui.MarketSearchListener;
 import me.bounser.nascraft.managers.EventsManager;
 import me.bounser.nascraft.placeholderapi.PAPIExpansion;
 import me.bounser.nascraft.scheduler.FoliaScheduler;
@@ -179,6 +180,7 @@ public class Nascraft extends JavaPlugin {
         if (config.isCommandEnabled("market")) {
             new MarketCommand();
             Bukkit.getPluginManager().registerEvents(new InventoryListener(), this);
+            Bukkit.getPluginManager().registerEvents(new MarketSearchListener(), this);
         }
 
         if (config.isCommandEnabled("sellhand")) new SellHandCommand();
@@ -342,7 +344,7 @@ public class Nascraft extends JavaPlugin {
                 });
             });
         } else {
-            getLogger().info("Layout (Nascraft.json) present!");
+            getLogger().info("Layout Nascraft.json present!");
         }
     }
 

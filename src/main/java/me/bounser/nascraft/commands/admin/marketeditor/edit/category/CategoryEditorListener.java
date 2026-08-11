@@ -13,86 +13,96 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 
 public class CategoryEditorListener implements Listener {
 
     private static CategoryEditorListener instance = null;
 
-    public static CategoryEditorListener getInstance() { return instance == null ? new CategoryEditorListener() : instance; }
+    public static CategoryEditorListener getInstance() {
+        return instance == null ? instance = new CategoryEditorListener() : instance;
+    }
 
     @EventHandler
     public void onClickInventory(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!player.hasPermission("nascraft.admin") && !player.hasPermission("nascraft.market.admin")) return;
 
-        if (!event.getWhoClicked().hasPermission("nascraft.admin")
-                && !event.getWhoClicked().hasPermission("nascraft.market.admin")) return;
+        if (event.getView().getTopInventory().getSize() != 27
+                || !event.getView().getTitle().equals("§8§lEdit Category")) return;
 
-        if (event.getView().getTopInventory().getSize() != 27 || !event.getView().getTitle().equals("§8§lEdit Category") || event.getCurrentItem() == null) return;
-
-        Player player = (Player) event.getWhoClicked();
-
-        if (Objects.equals(event.getClickedInventory(), event.getView().getTopInventory())) event.setCancelled(true);
+        if (Objects.equals(event.getClickedInventory(), event.getView().getTopInventory())) {
+            event.setCancelled(true);
+        }
 
         CategoryEditor categoryEditor = CategoryEditorManager.getInstance().getEditCategoryFromPlayer(player);
+        if (categoryEditor == null) {
+            player.closeInventory();
+            return;
+        }
 
         switch (event.getRawSlot()) {
-
-            case 9:
-                categoryEditor.save();
-                return;
-
-            case 11:
+            case 9 -> categoryEditor.save();
+            case 11 -> {
                 CategoryEditorManager.getInstance().clearEditing(player);
                 new MarketEditor(player);
-                return;
-
-            case 17:
-                ItemStack deletePanel = event.getCurrentItem();
-
-                ItemMeta metaDelete = deletePanel.getItemMeta();
-
-                if (metaDelete.getDisplayName().equals(ChatColor.RED + "§lDELETE CATEGORY")) {
-                    metaDelete.setDisplayName(ChatColor.RED + "§lCONFIRM");
-                    deletePanel.setItemMeta(metaDelete);
-                } else {
-                    categoryEditor.removeCategory();
+            }
+            case 17 -> handleDelete(event, categoryEditor);
+            case 13 -> openDisplayNameInput(player, categoryEditor);
+            case 14 -> {
+                ItemStack cursor = event.getCursor();
+                if (cursor == null || cursor.getType() == Material.AIR) {
+                    player.sendMessage(ChatColor.RED + "Put the desired material on your cursor, then click this option.");
+                    return;
                 }
-
-                return;
-
-            case 13:
-                new AnvilGUI.Builder()
-                        .onClick((slot, stateSnapshot) -> {
-
-                            String categoryName = stateSnapshot.getText();
-
-                            categoryEditor.setDisplayName(categoryName);
-
-                            stateSnapshot.getPlayer().sendMessage(ChatColor.LIGHT_PURPLE + "Category display name correctly!");
-                            return Arrays.asList(
-                                    AnvilGUI.ResponseAction.close(),
-                                    AnvilGUI.ResponseAction.run(categoryEditor::open)
-                            );
-
-                        })
-                        .preventClose()
-                        .text("Display name...")
-                        .title("Category name")
-                        .plugin(Nascraft.getInstance())
-                        .open(player);
-
-                return;
-
-            case 14:
-
-                if (event.getCursor() != null && !event.getCursor().getType().equals(Material.AIR)){
-                    categoryEditor.setMaterial(event.getCursor().getType());
-
-                    player.sendMessage(ChatColor.LIGHT_PURPLE + "Category material changed to: " + event.getCursor().getType().toString().toLowerCase());
-                    categoryEditor.open();
-                }
-                return;
+                categoryEditor.setMaterial(cursor.getType());
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "Category material changed to: "
+                        + cursor.getType().name().toLowerCase());
+                categoryEditor.open();
+            }
+            default -> { }
         }
     }
 
+    private void handleDelete(InventoryClickEvent event, CategoryEditor categoryEditor) {
+        ItemStack deletePanel = event.getCurrentItem();
+        if (deletePanel == null || !deletePanel.hasItemMeta()) return;
+        ItemMeta metaDelete = deletePanel.getItemMeta();
+        if (!metaDelete.hasDisplayName()) return;
+
+        if (metaDelete.getDisplayName().equals(ChatColor.RED + "§lDELETE CATEGORY")) {
+            metaDelete.setDisplayName(ChatColor.DARK_RED + "§lCLICK AGAIN TO CONFIRM");
+            deletePanel.setItemMeta(metaDelete);
+            event.getView().getTopInventory().setItem(17, deletePanel);
+        } else {
+            categoryEditor.removeCategory();
+        }
+    }
+
+    private void openDisplayNameInput(Player player, CategoryEditor categoryEditor) {
+        new AnvilGUI.Builder()
+                .onClick((slot, stateSnapshot) -> {
+                    if (slot != AnvilGUI.Slot.OUTPUT) return Collections.emptyList();
+
+                    String categoryName = stateSnapshot.getText().trim();
+                    if (categoryName.isEmpty()) {
+                        return Collections.singletonList(AnvilGUI.ResponseAction.replaceInputText("Name required"));
+                    }
+                    if (categoryName.length() > 64) {
+                        return Collections.singletonList(AnvilGUI.ResponseAction.replaceInputText("Name too long"));
+                    }
+
+                    categoryEditor.setDisplayName(categoryName);
+                    stateSnapshot.getPlayer().sendMessage(ChatColor.LIGHT_PURPLE + "Category display name updated.");
+                    return Arrays.asList(
+                            AnvilGUI.ResponseAction.close(),
+                            AnvilGUI.ResponseAction.run(categoryEditor::open)
+                    );
+                })
+                .text(categoryEditor.getDisplayName())
+                .title("Category name")
+                .plugin(Nascraft.getInstance())
+                .open(player);
+    }
 }

@@ -80,7 +80,7 @@ public class InfoMenu implements MenuPage {
 
             List<String> lore = List.of(
                     "§7Older §8→ §7Newer",
-                    "§7Price: §f" + Formatter.format(item.getCurrency(), price, Style.ROUND_BASIC)
+                    "§7Price: §f" + plainPrice(price)
             );
             gui.setItem(row * GRAPH_COLUMNS + column,
                     MarketMenuManager.getInstance().generateItemStack(graphMaterial, "§bPrice point " + (column + 1), lore));
@@ -106,12 +106,12 @@ public class InfoMenu implements MenuPage {
         gui.setItem(47, MarketMenuManager.getInstance().generateItemStack(
                 Material.EMERALD,
                 "§a24h High",
-                List.of("§f" + Formatter.format(item.getCurrency(), high, Style.ROUND_BASIC))));
+                List.of("§f" + plainPrice(high))));
 
         gui.setItem(48, MarketMenuManager.getInstance().generateItemStack(
                 item.getItemStack().getType(),
                 legacyMiniMessage(item.getName()),
-                List.of("§7Current price", "§f" + Formatter.format(item.getCurrency(), current, Style.ROUND_BASIC))));
+                List.of("§7Current price", "§f" + plainPrice(current))));
 
         gui.setItem(49, MarketMenuManager.getInstance().generateItemStack(
                 Material.CLOCK,
@@ -121,7 +121,7 @@ public class InfoMenu implements MenuPage {
         gui.setItem(50, MarketMenuManager.getInstance().generateItemStack(
                 Material.REDSTONE,
                 "§c24h Low",
-                List.of("§f" + Formatter.format(item.getCurrency(), low, Style.ROUND_BASIC))));
+                List.of("§f" + plainPrice(low))));
 
         String changeColor = change >= 0 ? "§a" : "§c";
         gui.setItem(51, MarketMenuManager.getInstance().generateItemStack(
@@ -138,6 +138,10 @@ public class InfoMenu implements MenuPage {
                         "§7Green = finish above start.",
                         "§7Red = finish below start."
                 )));
+    }
+
+    private String plainPrice(double price) {
+        return Formatter.plainFormat(item.getCurrency(), price, Style.ROUND_BASIC);
     }
 
     private String legacyMiniMessage(String text) {

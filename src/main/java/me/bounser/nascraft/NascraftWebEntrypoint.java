@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.logging.Level;
 
 public class NascraftWebEntrypoint extends Nascraft {
-    private static final String WEB_BUNDLE_VERSION = "1.9.9-market-web-polish";
+    private static final String WEB_BUNDLE_VERSION = "1.9.9-market-web-polish-r2";
     private static final List<String> WEB_RESOURCES = List.of("web/index.html", "web/style.css", "web/script.js", "web/production-hardening.js", "images/logo.png", "images/logo-color.png", "images/fire.png");
     private WebServerManager webServerManager;
     @Override public void onEnable() { super.onEnable(); WebConfig webConfig = new WebConfig(this); if (!webConfig.enabled()) return; restoreBundledWebFrontend(); webServerManager = new WebServerManager(this, webConfig); FoliaScheduler.runAsync(this, webServerManager::startServer); }

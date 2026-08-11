@@ -15,7 +15,7 @@
         { key: '7d', label: '7D', seconds: 7 * 24 * 60 * 60 },
         { key: 'all', label: 'ALL', seconds: null }
     ];
-    let activeChartRange = sessionStorage.getItem('nascraft-chart-range') || 'all';
+    let activeChartRange = localStorage.getItem('nascraft-chart-range') || 'all';
     if (!chartRanges.some(range => range.key === activeChartRange)) activeChartRange = 'all';
 
     function hookLightweightChart() {
@@ -91,7 +91,7 @@
             button.title = range.seconds ? `Show the last ${range.label}` : 'Show all available price history';
             button.addEventListener('click', () => {
                 activeChartRange = range.key;
-                sessionStorage.setItem('nascraft-chart-range', activeChartRange);
+                localStorage.setItem('nascraft-chart-range', activeChartRange);
                 refreshChartRangeButtons();
                 applyChartRange();
             });
@@ -225,7 +225,7 @@
         if (!brand || !logo || !name || brand.dataset.nascraftPolished) return;
 
         brand.dataset.nascraftPolished = 'true';
-        brand.className = 'flex flex-col items-center gap-1 min-w-[52px] shrink-0';
+        brand.className = 'flex flex-col items-start gap-0.5 min-w-[72px] shrink-0';
         logo.className = 'w-8 h-8 shrink-0';
         name.className = 'font-bold text-white text-xs tracking-wide leading-none';
         name.textContent = 'Nascraft';
@@ -233,8 +233,10 @@
 
     function applyWebPreferences() {
         const reduceMotion = localStorage.getItem('nascraft-reduce-motion') === 'true';
+        const compactMode = localStorage.getItem('nascraft-compact-mode') === 'true';
         document.documentElement.style.scrollBehavior = reduceMotion ? 'auto' : '';
         document.body.classList.toggle('nascraft-reduce-motion', reduceMotion);
+        document.body.classList.toggle('nascraft-compact-mode', compactMode);
     }
 
     function closeSettings() {
@@ -252,12 +254,24 @@
                     <div><h3 class="text-lg font-bold text-white">Settings</h3><p class="text-xs text-gray-400">Nascraft Web 1.9.9</p></div>
                     <button id="nascraft-settings-close" class="text-gray-400 hover:text-white text-xl">×</button>
                 </div>
-                <label class="flex items-center justify-between gap-4 p-3 bg-gray-800/70 rounded-lg cursor-pointer">
-                    <div><div class="text-sm font-semibold text-white">Reduce animations</div><div class="text-xs text-gray-400">Useful on slower browsers and mobile devices.</div></div>
-                    <input id="nascraft-reduce-motion" type="checkbox" class="h-4 w-4" ${localStorage.getItem('nascraft-reduce-motion') === 'true' ? 'checked' : ''}>
-                </label>
-                <div class="mt-3 p-3 border border-dashed border-gray-700 rounded-lg text-xs text-gray-400">
-                    Discord alerts and additional integrations: <span class="font-semibold text-indigo-300">Coming Soon</span>
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between gap-4 p-3 bg-gray-800/70 rounded-lg cursor-pointer">
+                        <div><div class="text-sm font-semibold text-white">Reduce animations</div><div class="text-xs text-gray-400">Useful on slower browsers and mobile devices.</div></div>
+                        <input id="nascraft-reduce-motion" type="checkbox" class="h-4 w-4" ${localStorage.getItem('nascraft-reduce-motion') === 'true' ? 'checked' : ''}>
+                    </label>
+                    <label class="flex items-center justify-between gap-4 p-3 bg-gray-800/70 rounded-lg cursor-pointer">
+                        <div><div class="text-sm font-semibold text-white">Compact market</div><div class="text-xs text-gray-400">Reduces spacing so more items and data fit on screen.</div></div>
+                        <input id="nascraft-compact-mode" type="checkbox" class="h-4 w-4" ${localStorage.getItem('nascraft-compact-mode') === 'true' ? 'checked' : ''}>
+                    </label>
+                    <div class="p-3 bg-gray-800/70 rounded-lg">
+                        <div class="text-sm font-semibold text-white mb-2">Default chart timeframe</div>
+                        <select id="nascraft-default-chart-range" class="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-sm text-gray-200">
+                            ${chartRanges.map(range => `<option value="${range.key}" ${range.key === activeChartRange ? 'selected' : ''}>${range.label}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="p-3 border border-dashed border-gray-700 rounded-lg text-xs text-gray-400">
+                        Discord alerts and additional integrations: <span class="font-semibold text-indigo-300">Coming Soon</span>
+                    </div>
                 </div>
             </div>`;
         document.body.appendChild(overlay);
@@ -267,25 +281,54 @@
             localStorage.setItem('nascraft-reduce-motion', String(event.target.checked));
             applyWebPreferences();
         });
+        document.getElementById('nascraft-compact-mode')?.addEventListener('change', event => {
+            localStorage.setItem('nascraft-compact-mode', String(event.target.checked));
+            applyWebPreferences();
+        });
+        document.getElementById('nascraft-default-chart-range')?.addEventListener('change', event => {
+            activeChartRange = event.target.value;
+            localStorage.setItem('nascraft-chart-range', activeChartRange);
+            refreshChartRangeButtons();
+            applyChartRange();
+        });
     }
 
-    function ensureSettingsButton() {
+    function ensureUserHeader() {
         const authControls = document.getElementById('auth-controls');
         const userDisplay = document.getElementById('user-display');
-        if (!authControls || !userDisplay || document.getElementById('nascraft-settings-btn')) return;
+        if (!authControls || !userDisplay) return;
 
-        const button = document.createElement('button');
-        button.id = 'nascraft-settings-btn';
-        button.type = 'button';
-        button.textContent = 'Settings';
-        button.className = 'text-indigo-300 hover:text-white text-xs font-medium transition duration-150';
-        button.addEventListener('click', openSettings);
-        userDisplay.insertAdjacentElement('afterend', button);
+        const header = authControls.parentElement;
+        const brand = header?.firstElementChild;
+        if (!header || !brand) return;
+
+        let identity = document.getElementById('nascraft-player-identity');
+        if (!identity) {
+            identity = document.createElement('div');
+            identity.id = 'nascraft-player-identity';
+            identity.className = 'flex items-center gap-2 min-w-0';
+            brand.insertAdjacentElement('afterend', identity);
+        }
+
+        userDisplay.className = 'text-xs font-semibold text-gray-200 truncate max-w-[96px]';
+        identity.appendChild(userDisplay);
+
+        if (!document.getElementById('nascraft-settings-btn')) {
+            const button = document.createElement('button');
+            button.id = 'nascraft-settings-btn';
+            button.type = 'button';
+            button.setAttribute('aria-label', 'Open settings');
+            button.title = 'Settings';
+            button.innerHTML = '⚙';
+            button.className = 'text-indigo-300 hover:text-white text-sm leading-none transition duration-150';
+            button.addEventListener('click', openSettings);
+            identity.appendChild(button);
+        }
     }
 
     const pageObserver = new MutationObserver(() => {
         addMaxButton();
-        ensureSettingsButton();
+        ensureUserHeader();
     });
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -293,11 +336,16 @@
         addChartRangeControls();
         polishBrandHeader();
         applyWebPreferences();
-        ensureSettingsButton();
+        ensureUserHeader();
         pageObserver.observe(document.body, { childList: true, subtree: true });
     });
 
     const style = document.createElement('style');
-    style.textContent = '.nascraft-reduce-motion *, .nascraft-reduce-motion *::before, .nascraft-reduce-motion *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }';
+    style.textContent = `
+        .nascraft-reduce-motion *, .nascraft-reduce-motion *::before, .nascraft-reduce-motion *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+        .nascraft-compact-mode aside { padding-top: .75rem !important; padding-bottom: .75rem !important; }
+        .nascraft-compact-mode #item-list { gap: .125rem !important; }
+        .nascraft-compact-mode #item-list li { padding-top: .25rem !important; padding-bottom: .25rem !important; }
+    `;
     document.head.appendChild(style);
 })();

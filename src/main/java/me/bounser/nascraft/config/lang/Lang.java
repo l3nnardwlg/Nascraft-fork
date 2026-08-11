@@ -12,6 +12,9 @@ import java.io.*;
 
 public class Lang {
 
+    private static final String COMING_SOON_MINI = "<color:#fbbf24>Coming Soon</color>";
+    private static final String COMING_SOON_PLAIN = "Coming Soon";
+
     private YamlConfiguration lang;
 
     private final MiniMessage miniMessage;
@@ -57,8 +60,35 @@ public class Lang {
         if (!resourceFile.exists()) Nascraft.getInstance().saveResource(resourcePath, false);
     }
 
+    private boolean isComingSoon(Message message) {
+        String key = message.name();
+        return key.startsWith("DISCORD_")
+                || key.startsWith("DISCORDCMD_")
+                || key.startsWith("LINK_")
+                || key.startsWith("ALERT_")
+                || key.startsWith("ALERTS_")
+                || key.startsWith("GUI_ALERTS_")
+                || key.startsWith("GUI_BUYSELL_ALERTS_")
+                || key.startsWith("ANVIL_ALERT_");
+    }
+
+    private String comingSoon(Message message) {
+        return message.name().startsWith("DISCORD_") ? COMING_SOON_PLAIN : COMING_SOON_MINI;
+    }
+
+    private String raw(Message message) {
+        if (isComingSoon(message)) return comingSoon(message);
+
+        String key = message.name().toLowerCase();
+        if (!this.lang.contains(key)) {
+            Nascraft.getInstance().getLogger().warning("Lang section not found: " + key);
+            return "Lang section not found: " + key;
+        }
+        return this.lang.getString(key).replace("&", "§");
+    }
+
     public void message(Player player, Message lang) {
-        player.sendMessage(miniMessage.deserialize(this.lang.getString(lang.name().toLowerCase())));
+        player.sendMessage(miniMessage.deserialize(raw(lang)));
     }
 
     public void message(Player player, String msg) {
@@ -66,17 +96,11 @@ public class Lang {
     }
 
     public String message(Message lang) {
-        if (!this.lang.contains(lang.name().toLowerCase())) {
-            Nascraft.getInstance().getLogger().warning("Lang section not found: " + lang.name().toLowerCase());
-            return "Lang section not found: " + lang.name().toLowerCase();
-        }
-        return this.lang.getString(lang.name().toLowerCase()).replace("&", "§"); }
+        return raw(lang);
+    }
 
     public void message(Player player, Message lang, String worth, String amount, String name) {
-        if (!this.lang.contains(lang.name().toLowerCase())) {
-            Nascraft.getInstance().getLogger().warning("Lang section not found: " + lang.name().toLowerCase());
-        }
-        player.sendMessage(miniMessage.deserialize(this.lang.getString(lang.name().toLowerCase())
+        player.sendMessage(miniMessage.deserialize(raw(lang)
                 .replace("[WORTH]", worth)
                 .replace("[AMOUNT]", amount)
                 .replace("[NAME]", name)));
@@ -84,35 +108,32 @@ public class Lang {
 
     public void message(Player player, Message lang, String placeholder, String replacement) {
 
-        player.sendMessage(miniMessage.deserialize(this.lang.getString(lang.name().toLowerCase())
+        player.sendMessage(miniMessage.deserialize(raw(lang)
                 .replace(placeholder, replacement)));
     }
 
     public void message(Player player, Message lang, String placeholder1, String replacement1, String placeholder2, String replacement2, String placeholder3, String replacement3) {
 
-        player.sendMessage(miniMessage.deserialize(this.lang.getString(lang.name().toLowerCase())
+        player.sendMessage(miniMessage.deserialize(raw(lang)
                 .replace(placeholder1, replacement1)
                 .replace(placeholder2, replacement2)
                 .replace(placeholder3, replacement3)));
     }
 
     public String message(Message lang, String worth, String amount, String name) {
-        return this.lang.getString(lang.name().toLowerCase())
-                .replace("&", "§")
+        return raw(lang)
                 .replace("[WORTH]", worth)
                 .replace("[AMOUNT]", amount)
                 .replace("[NAME]", name);
     }
 
     public String message(Message lang, String placeholder, String replacement) {
-        return this.lang.getString(lang.name().toLowerCase())
-                .replace("&", "§")
+        return raw(lang)
                 .replace(placeholder, replacement);
     }
 
     public String message(Message lang, String placeholder1, String replacement1, String placeholder2, String replacement2, String placeholder3, String replacement3) {
-        return this.lang.getString(lang.name().toLowerCase())
-                .replace("&", "§")
+        return raw(lang)
                 .replace(placeholder1, replacement1)
                 .replace(placeholder2, replacement2)
                 .replace(placeholder3, replacement3);

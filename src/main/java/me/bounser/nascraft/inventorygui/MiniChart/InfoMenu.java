@@ -110,7 +110,7 @@ public class InfoMenu implements MenuPage {
 
         gui.setItem(48, MarketMenuManager.getInstance().generateItemStack(
                 item.getItemStack().getType(),
-                "§f" + item.getName(),
+                legacyMiniMessage(item.getName()),
                 List.of("§7Current price", "§f" + Formatter.format(item.getCurrency(), current, Style.ROUND_BASIC))));
 
         gui.setItem(49, MarketMenuManager.getInstance().generateItemStack(
@@ -138,6 +138,16 @@ public class InfoMenu implements MenuPage {
                         "§7Green = finish above start.",
                         "§7Red = finish below start."
                 )));
+    }
+
+    private String legacyMiniMessage(String text) {
+        if (text == null || text.isBlank()) return "§fItem";
+        try {
+            Component component = MiniMessage.miniMessage().deserialize(text);
+            return LegacyComponentSerializer.legacySection().serialize(component);
+        } catch (Exception ignored) {
+            return text;
+        }
     }
 
     private List<Double> loadDayPrices() {

@@ -54,39 +54,239 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
-
 import net.milkbowl.vault.economy.Economy;
+
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
 public class Nascraft extends JavaPlugin {
-    private static Nascraft main; private static NascraftAPI apiInstance; private static Economy economy = null; private static Permission perms = null; private RedisManager redisManager; private static final String AGUI_VERSION = "2.2.8";
-    public static Nascraft getInstance() { return main; } public static NascraftAPI getAPI() { return apiInstance == null ? apiInstance = new NascraftAPI() : apiInstance; } public RedisManager getRedisManager() { return redisManager; }
-    @Override public void onEnable() {
-        main = this; Config config = Config.getInstance(); ItemTextureProvider.init(this); setupMetrics();
-        new UpdateChecker(this, 108216).getVersion(version -> { if (!getDescription().getVersion().equals(version)) getLogger().info("There is a new version available! Download it here: https://www.spigotmc.org/resources/108216/"); });
-        if (!setupEconomy()) getLogger().warning("Vault is not installed! You'll have to provide another supplier."); setupPermissions(); Plugin AGUI = Bukkit.getPluginManager().getPlugin("AdvancedGUI");
-        if (AGUI == null || !AGUI.isEnabled()) { getLogger().warning("AdvancedGUI is not installed! You won't have graphs in-game without it!"); getLogger().warning("Learn more about AdvancedGUI here: https://www.spigotmc.org/resources/83636/"); } else { if (config.getCheckResources()) checkResources(); LayoutModifier.getInstance(); if (!Bukkit.getPluginManager().getPlugin("AdvancedGUI").getDescription().getVersion().equals(AGUI_VERSION)) getLogger().warning("This plugin was made using AdvancedGUI " + AGUI_VERSION + "! You may encounter errors on other versions"); }
-        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) { getLogger().info("PlaceholderAPI detected!"); new PAPIExpansion().register(); }
-        if (config.getDiscordEnabled()) { getLogger().info("Enabling discord extension..."); if (Config.getInstance().getLinkingMethod().equals(LinkingMethod.NATIVE) && config.isCommandEnabled("link")) new LinkCommand(); if (Config.getInstance().getOptionAlertEnabled()) { if (config.isCommandEnabled("alerts")) new AlertsCommand(); if (config.isCommandEnabled("setalerts")) new SetAlertCommand(); } if (config.isCommandEnabled("discord")) new DiscordCommand(); new DiscordBot(); getLogger().info("Discord extension loaded!"); }
-        if (config.getSellWandsEnabled()) { if (config.isCommandEnabled("givesellwand")) new GiveSellWandCommand(); Bukkit.getPluginManager().registerEvents(new WandListener(), this); Services.get().wands(); }
-        if (config.getLoansEnabled()) Services.get().debt(); createImagesFolder(); Services.get().market();
-        if (config.isCrossServerEnabled()) { if (!(DatabaseManager.get().getDatabase() instanceof MySQL)) getLogger().warning("cross-server.enabled is true but database.type is not MySQL — servers cannot share one market over SQLite. Set database.type: MySQL."); redisManager = new RedisManager(this, config.getNodeId()); try { redisManager.connect(); for (var item : Services.get().market().getAllParentItems()) redisManager.seedVersionIfNeeded(item.getIdentifier(), item.getPrice().getVersion()); } catch (Exception e) { getLogger().warning("Redis unavailable — cross-server sync disabled: " + e.getMessage()); redisManager = null; } if (redisManager != null) { long reconcileTicks = 20L * 60L * 5L; FoliaScheduler.runAsyncTimer(this, this::reconcileMarketFromDatabase, reconcileTicks, reconcileTicks); } }
-        if (config.isCommandEnabled("nascraft")) { new NascraftCommand(); Bukkit.getPluginManager().registerEvents(new NascraftLogListener(), this); }
-        Bukkit.getPluginManager().registerEvents(new MarketEditorInvListener(), this); Bukkit.getPluginManager().registerEvents(new EditItemMenuListener(), this); Bukkit.getPluginManager().registerEvents(new CategoryEditorListener(), this); Bukkit.getPluginManager().registerEvents(ChatInputManager.getInstance(), this);
-        if (config.isCommandEnabled("market")) { new MarketCommand(); Bukkit.getPluginManager().registerEvents(new InventoryListener(), this); Bukkit.getPluginManager().registerEvents(new MarketSearchListener(), this); }
-        if (config.isCommandEnabled("sellhand")) new SellHandCommand(); if (config.isCommandEnabled("sell-menu")) { new SellInvCommand(); Bukkit.getPluginManager().registerEvents(new SellInvListener(), this); } if (config.isCommandEnabled("sellall")) new SellAllCommand(); if (config.isCommandEnabled("portfolio")) { new PortfolioCommand(); Bukkit.getPluginManager().registerEvents(new PortfolioInventory(), this); }
-        Bukkit.getPluginManager().registerEvents(new EventsManager(), this); ItemChartReduced.load(); long purgeTicks = 20L * 60L * 60L * 6L; FoliaScheduler.runAsyncTimer(this, () -> { if (!Config.getInstance().isPrimaryNode()) return; Database db = DatabaseManager.get().getDatabase(); if (db instanceof BaseDatabase) ((BaseDatabase) db).purgeOldData(); else { db.purgeHistory(); db.purgeAlerts(); } }, purgeTicks, purgeTicks);
+    private static Nascraft main;
+    private static NascraftAPI apiInstance;
+    private static Economy economy = null;
+    private static Permission perms = null;
+    private RedisManager redisManager;
+    private static final String AGUI_VERSION = "2.2.8";
+
+    public static Nascraft getInstance() { return main; }
+    public static NascraftAPI getAPI() { return apiInstance == null ? apiInstance = new NascraftAPI() : apiInstance; }
+    public RedisManager getRedisManager() { return redisManager; }
+
+    @Override
+    public void onEnable() {
+        main = this;
+        Config config = Config.getInstance();
+        ItemTextureProvider.init(this);
+        setupMetrics();
+
+        new UpdateChecker(this, 108216).getVersion(version -> {
+            if (!getDescription().getVersion().equals(version))
+                getLogger().info("There is a new version available! Download it here: https://www.spigotmc.org/resources/108216/");
+        });
+
+        if (!setupEconomy()) getLogger().warning("Vault is not installed! You'll have to provide another supplier.");
+        setupPermissions();
+
+        Plugin AGUI = Bukkit.getPluginManager().getPlugin("AdvancedGUI");
+        if (AGUI == null || !AGUI.isEnabled()) {
+            getLogger().warning("AdvancedGUI is not installed! You won't have graphs in-game without it!");
+            getLogger().warning("Learn more about AdvancedGUI here: https://www.spigotmc.org/resources/83636/");
+        } else {
+            if (config.getCheckResources()) checkResources();
+            LayoutModifier.getInstance();
+            if (!AGUI.getDescription().getVersion().equals(AGUI_VERSION))
+                getLogger().warning("This plugin was made using AdvancedGUI " + AGUI_VERSION + "! You may encounter errors on other versions");
+        }
+
+        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            getLogger().info("PlaceholderAPI detected!");
+            new PAPIExpansion().register();
+        }
+
+        if (config.getDiscordEnabled()) {
+            getLogger().info("Enabling discord extension...");
+            if (Config.getInstance().getLinkingMethod().equals(LinkingMethod.NATIVE) && config.isCommandEnabled("link")) new LinkCommand();
+            if (Config.getInstance().getOptionAlertEnabled()) {
+                if (config.isCommandEnabled("alerts")) new AlertsCommand();
+                if (config.isCommandEnabled("setalerts")) new SetAlertCommand();
+            }
+            if (config.isCommandEnabled("discord")) new DiscordCommand();
+            new DiscordBot();
+            getLogger().info("Discord extension loaded!");
+        }
+
+        if (config.getSellWandsEnabled()) {
+            if (config.isCommandEnabled("givesellwand")) new GiveSellWandCommand();
+            Bukkit.getPluginManager().registerEvents(new WandListener(), this);
+            Services.get().wands();
+        }
+        if (config.getLoansEnabled()) Services.get().debt();
+
+        createImagesFolder();
+        Services.get().market();
+
+        if (config.isCrossServerEnabled()) {
+            if (!(DatabaseManager.get().getDatabase() instanceof MySQL))
+                getLogger().warning("cross-server.enabled is true but database.type is not MySQL — servers cannot share one market over SQLite. Set database.type: MySQL.");
+            redisManager = new RedisManager(this, config.getNodeId());
+            try {
+                redisManager.connect();
+                for (var item : Services.get().market().getAllParentItems())
+                    redisManager.seedVersionIfNeeded(item.getIdentifier(), item.getPrice().getVersion());
+            } catch (Exception e) {
+                getLogger().warning("Redis unavailable — cross-server sync disabled: " + e.getMessage());
+                redisManager = null;
+            }
+            if (redisManager != null) {
+                long reconcileTicks = 20L * 60L * 5L;
+                FoliaScheduler.runAsyncTimer(this, this::reconcileMarketFromDatabase, reconcileTicks, reconcileTicks);
+            }
+        }
+
+        if (config.isCommandEnabled("nascraft")) {
+            new NascraftCommand();
+            Bukkit.getPluginManager().registerEvents(new NascraftLogListener(), this);
+        }
+
+        Bukkit.getPluginManager().registerEvents(new MarketEditorInvListener(), this);
+        Bukkit.getPluginManager().registerEvents(new EditItemMenuListener(), this);
+        Bukkit.getPluginManager().registerEvents(new CategoryEditorListener(), this);
+        Bukkit.getPluginManager().registerEvents(ChatInputManager.getInstance(), this);
+
+        if (config.isCommandEnabled("market")) {
+            new MarketCommand();
+            Bukkit.getPluginManager().registerEvents(new InventoryListener(), this);
+            Bukkit.getPluginManager().registerEvents(new MarketSearchListener(), this);
+        }
+
+        if (config.isCommandEnabled("sellhand")) new SellHandCommand();
+        if (config.isCommandEnabled("sell-menu")) {
+            new SellInvCommand();
+            Bukkit.getPluginManager().registerEvents(new SellInvListener(), this);
+        }
+        if (config.isCommandEnabled("sellall")) new SellAllCommand();
+        if (config.isCommandEnabled("portfolio")) {
+            new PortfolioCommand();
+            Bukkit.getPluginManager().registerEvents(new PortfolioInventory(), this);
+        }
+
+        Bukkit.getPluginManager().registerEvents(new EventsManager(), this);
+        ItemChartReduced.load();
+
+        long purgeTicks = 20L * 60L * 60L * 6L;
+        FoliaScheduler.runAsyncTimer(this, () -> {
+            if (!Config.getInstance().isPrimaryNode()) return;
+            Database db = DatabaseManager.get().getDatabase();
+            if (db instanceof BaseDatabase) ((BaseDatabase) db).purgeOldData();
+            else { db.purgeHistory(); db.purgeAlerts(); }
+        }, purgeTicks, purgeTicks);
     }
-    @Override public void onDisable() { if (redisManager != null) redisManager.disconnect(); getLogger().info("Saving and closing connection with database..."); DatabaseManager.get().getDatabase().disconnect(); getLogger().info("Done!"); if (Config.getInstance().getDiscordEnabled() && DiscordBot.getInstance() != null) { DiscordBot.getInstance().sendClosedMessage(); DiscordBot.getInstance().getJDA().shutdown(); } ItemTextureProvider.close(); }
-    private void reconcileMarketFromDatabase() { Database db = DatabaseManager.get().getDatabase(); if (!(db instanceof BaseDatabase bd)) return; Map<String, ItemState> states = bd.loadItemStates(); FoliaScheduler.runGlobal(this, () -> { int applied = 0; for (var entry : states.entrySet()) { var item = Services.get().market().getItem(entry.getKey()); if (item == null) continue; ItemState state = entry.getValue(); if (state.version() <= item.getPrice().getVersion()) continue; item.getPrice().applyExternalState(state.price(), state.version()); applied++; } if (applied > 0) getLogger().info("Reconciled " + applied + " market price(s) from database."); }); }
-    private void setupMetrics() { Metrics metrics = new Metrics(this, 18154); metrics.addCustomChart(new SingleLineChart("items", () -> MarketManager.getInstance().getAllItems().size())); metrics.addCustomChart(new SingleLineChart("categories", () -> MarketManager.getInstance().getCategories().size())); metrics.addCustomChart(new SimplePie("database", () -> Config.getInstance().getDatabaseType().toString())); metrics.addCustomChart(new SimplePie("locale", () -> Config.getInstance().getLanguage().getCode())); metrics.addCustomChart(new AdvancedPie("used_currencies", () -> { Map<String, Integer> valueMap = new HashMap<>(); for (me.bounser.nascraft.managers.currencies.Currency currency : CurrenciesManager.getInstance().getCurrencies()) valueMap.put(currency.getCurrencyIdentifier(), currency.getItems().size()); return valueMap; })); }
-    private boolean setupEconomy() { if (getServer().getPluginManager().getPlugin("Vault") == null) return false; RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class); if (rsp == null) return false; economy = rsp.getProvider(); return economy != null; }
-    private boolean setupPermissions() { if (getServer().getPluginManager().getPlugin("Vault") == null) return false; RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager().getRegistration(Permission.class); if (rsp == null) return false; perms = rsp.getProvider(); return perms != null; }
-    public static Economy getEconomy() { return economy; } public static Permission getPermissions() { return perms; }
-    private void createImagesFolder() { if (!new File(getDataFolder(), "images").exists()) getDataFolder().mkdirs(); }
-    private void checkResources() { File images = new File(getDataFolder(), "images"); if (!images.exists()) images.mkdirs(); File layouts = new File(getDataFolder(), "layouts"); if (!layouts.exists()) layouts.mkdirs(); copyResource("images/blue.png", "images/blue.png"); copyResource("images/green.png", "images/green.png"); copyResource("images/red.png", "images/red.png"); copyResource("images/orange.png", "images/orange.png"); copyResource("layouts/buy_sell_menu.yml", "layouts/buy_sell_menu.yml"); copyResource("layouts/portfolio.yml", "layouts/portfolio.yml"); copyResource("layouts/info_menu.yml", "layouts/info_menu.yml"); }
-    private void copyResource(String resourcePath, String targetPath) { try (InputStream in = getResource(resourcePath)) { if (in == null) return; File out = new File(getDataFolder(), targetPath); if (!out.exists()) FileUtils.copyInputStreamToFile(in, out); } catch (IOException e) { getLogger().warning("Could not copy resource " + resourcePath + ": " + e.getMessage()); } }
+
+    @Override
+    public void onDisable() {
+        if (redisManager != null) redisManager.disconnect();
+        getLogger().info("Saving and closing connection with database...");
+        DatabaseManager.get().getDatabase().disconnect();
+        getLogger().info("Done!");
+        if (Config.getInstance().getDiscordEnabled() && DiscordBot.getInstance() != null) {
+            DiscordBot.getInstance().sendClosedMessage();
+            DiscordBot.getInstance().getJDA().shutdown();
+        }
+        ItemTextureProvider.close();
+    }
+
+    private void reconcileMarketFromDatabase() {
+        Database db = DatabaseManager.get().getDatabase();
+        if (!(db instanceof BaseDatabase bd)) return;
+        Map<String, ItemState> states = bd.loadItemStates();
+        FoliaScheduler.runGlobal(this, () -> {
+            int applied = 0;
+            for (var entry : states.entrySet()) {
+                var item = Services.get().market().getItem(entry.getKey());
+                if (item == null || !item.isParent()) continue;
+                if (item.getPrice().applyRemoteState(entry.getValue().stock(), entry.getValue().version())) applied++;
+            }
+            if (applied > 0) getLogger().fine("[Sync] Reconciliation applied " + applied + " state(s) from database.");
+        });
+    }
+
+    private void setupMetrics() {
+        Metrics metrics = new Metrics(this, 18404);
+        metrics.addCustomChart(new SimplePie("discord_bridge", () -> String.valueOf(Config.getInstance().getDiscordEnabled())));
+        metrics.addCustomChart(new SimplePie("cross_server", () -> Config.getInstance().isCrossServerEnabled() ? "Enabled" : "Disabled"));
+        if (Config.getInstance().getDiscordEnabled())
+            metrics.addCustomChart(new SimplePie("linking_method", () -> Config.getInstance().getLinkingMethod().toString()));
+        metrics.addCustomChart(new SimplePie("used_with_advancedgui", () -> String.valueOf(Bukkit.getPluginManager().getPlugin("AdvancedGUI") != null)));
+        metrics.addCustomChart(new SingleLineChart("operations_per_hour", () -> Services.get().market().getOperationsLastHour()));
+        metrics.addCustomChart(new AdvancedPie("players_linked_with_discord", new Callable<Map<String, Integer>>() {
+            @Override
+            public Map<String, Integer> call() {
+                Map<String, Integer> valueMap = new HashMap<>();
+                if (!Config.getInstance().getDiscordEnabled()) return valueMap;
+                int linkedPlayers = getLinkedPlayers();
+                valueMap.put("Linked", linkedPlayers);
+                valueMap.put("Not linked", Bukkit.getOnlinePlayers().size() - linkedPlayers);
+                return valueMap;
+            }
+            private int getLinkedPlayers() {
+                int counter = 0;
+                for (Player player : Bukkit.getOnlinePlayers())
+                    if (Services.get().links().getUserDiscordID(player.getUniqueId()) != null) counter++;
+                return counter;
+            }
+        }));
+    }
+
+    public static Economy getEconomy() { return economy; }
+    public static Permission getPermissions() { return perms; }
+
+    private boolean setupEconomy() {
+        if (getServer().getPluginManager().getPlugin("Vault") == null) return false;
+        RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
+        if (rsp == null) return false;
+        economy = rsp.getProvider();
+        return economy != null;
+    }
+
+    private boolean setupPermissions() {
+        RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager().getRegistration(Permission.class);
+        if (rsp == null) return false;
+        perms = rsp.getProvider();
+        return perms != null;
+    }
+
+    private void createImagesFolder() {
+        File imagesFolder = new File(getDataFolder(), "images");
+        if (!imagesFolder.exists() && !imagesFolder.mkdirs()) getLogger().warning("Failed to create images folder.");
+    }
+
+    private void checkResources() {
+        getLogger().info("Checking required layouts... ");
+        getLogger().info("If you want to disable this procedure, set auto_resources_injection to false in the config.yml file.");
+        File fileToReplace = new File(getDataFolder().getParent() + "/AdvancedGUI/layout/Nascraft.json");
+        if (!fileToReplace.exists()) {
+            try {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(getResource("Nascraft.json")));
+                StringBuilder jsonContent = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) jsonContent.append(line);
+                reader.close();
+                FileUtils.writeStringToFile(fileToReplace, jsonContent.toString(), "UTF-8");
+            } catch (IOException e) { e.printStackTrace(); }
+            getLogger().info("Layout Nascraft.json added.");
+            LayoutManager.getInstance().shutdownSync();
+            GuiWallManager.getInstance().shutdown();
+            GuiItemManager.getInstance().shutdown();
+            FoliaScheduler.runAsync(this, () -> {
+                AdvancedGUI.getInstance().readConfig();
+                VersionMediator.reload();
+                LayoutManager.getInstance().reload(layout -> getLogger().severe("§cFailed to load layout: " + layout + " §7(see console for details)"));
+                FoliaScheduler.runGlobal(AdvancedGUI.getInstance(), () -> {
+                    GuiWallManager.getInstance().setup();
+                    GuiItemManager.getInstance().setup();
+                });
+            });
+        } else getLogger().info("Layout (Nascraft.json) present!");
+    }
 }

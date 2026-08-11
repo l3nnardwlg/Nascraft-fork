@@ -30,7 +30,7 @@ aside > div.flex.items-center.justify-between:first-of-type {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     align-items: center !important;
-    column-gap: 0.5rem;
+    column-gap: 0.75rem;
     row-gap: 0.45rem;
 }
 aside > div.flex.items-center.justify-between:first-of-type > :first-child {
@@ -53,16 +53,32 @@ aside > div.flex.items-center.justify-between:first-of-type > :first-child span 
 #nascraft-player-identity {
     grid-column: 1;
     grid-row: 2;
+    width: 100%;
     min-width: 0;
+    justify-self: start !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    overflow: visible !important;
 }
 #nascraft-player-identity #user-display {
-    max-width: 8.5rem !important;
+    max-width: 9.5rem !important;
+    min-width: 0;
+    margin: 0 !important;
+    text-align: left !important;
+    flex: 0 1 auto;
 }
 #nascraft-settings-btn {
-    flex: none;
+    flex: 0 0 auto !important;
+    margin-left: 0.25rem !important;
     font-size: 1rem !important;
+    line-height: 1 !important;
 }
 #auth-controls {
     grid-column: 2;
     grid-row: 2;
+    justify-self: end !important;
+    min-width: max-content;
+}
+#auth-controls > div {
+    justify-content: flex-end !important;
 }

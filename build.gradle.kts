@@ -20,6 +20,7 @@ dependencies {
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") { exclude(group = "org.bukkit", module = "bukkit") }
     compileOnly("com.discordsrv:discordsrv:1.28.0"); compileOnly("commons-io:commons-io:2.14.0"); compileOnly("net.dv8tion:JDA:5.0.0-beta.18"); compileOnly("net.kyori:adventure-text-minimessage:4.17.0")
     implementation("org.bstats:bstats-bukkit:3.0.2")
+    implementation("net.wesjd:anvilgui:1.10.4-SNAPSHOT")
     compileOnly("redis.clients:jedis:5.1.2"); implementation("org.mindrot:jbcrypt:0.4"); implementation("de.tr7zw:item-nbt-api:2.13.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.3"); testRuntimeOnly("org.junit.platform:junit-platform-launcher"); testImplementation("org.xerial:sqlite-jdbc:3.43.0.0"); testImplementation("org.mockito:mockito-core:5.23.0"); testImplementation("org.mockito:mockito-junit-jupiter:5.23.0"); testImplementation("io.papermc.paper:paper-api:26.2.build.+")
 }
@@ -31,7 +32,7 @@ tasks {
     shadowJar {
         archiveClassifier.set(""); archiveBaseName.set("Nascraft")
         dependencies { exclude(dependency("org.xerial:sqlite-jdbc:.*")); exclude(dependency("net.dv8tion:JDA:.*")); exclude(dependency("jfree:jfreechart:.*")); exclude(dependency("com.zaxxer:HikariCP:.*")); exclude(dependency("redis.clients:jedis:.*")); exclude(dependency("org.jetbrains.kotlin:.*:.*")) }
-        relocate("org.bstats", "me.bounser.bstats"); relocate("de.tr7zw.changeme.nbtapi", "me.bounser.nbtapi"); relocate("io.javalin", "me.bounser.web.libs.javalin"); relocate("com.fasterxml.jackson", "me.bounser.web.libs.jackson")
+        relocate("org.bstats", "me.bounser.bstats"); relocate("net.wesjd.anvilgui", "me.bounser.anvilgui"); relocate("de.tr7zw.changeme.nbtapi", "me.bounser.nbtapi"); relocate("io.javalin", "me.bounser.web.libs.javalin"); relocate("com.fasterxml.jackson", "me.bounser.web.libs.jackson")
     }
     test { useJUnitPlatform() }
     build { dependsOn(shadowJar) }

@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -65,7 +66,22 @@ public class EditItemMenuListener implements Listener {
             case 22 -> openNumberInput(player, editor, "Price support", editor.getSupport(), "support");
             case 23 -> openNumberInput(player, editor, "Price resistance", editor.getResistance(), "resistance");
             case 15 -> cycleCategory(player, editor, event.isRightClick() ? -1 : 1);
+            case 24 -> {
+                editor.toggleBuyEnabled();
+                editor.open();
+            }
+            case 25 -> {
+                editor.toggleSellEnabled();
+                editor.open();
+            }
             default -> { }
+        }
+    }
+
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (event.getView().getTitle().equals(SELECTOR_TITLE)) {
+            selectors.remove(event.getPlayer().getUniqueId());
         }
     }
 
@@ -91,10 +107,11 @@ public class EditItemMenuListener implements Listener {
                     if (slot != AnvilGUI.Slot.OUTPUT) return Collections.emptyList();
                     String value = stateSnapshot.getText().trim();
                     if (value.isEmpty()) return List.of(AnvilGUI.ResponseAction.replaceInputText("Name required"));
+                    if (value.length() > 64) return List.of(AnvilGUI.ResponseAction.replaceInputText("Name too long"));
                     editor.setAlias(value);
+                    player.sendMessage(ChatColor.LIGHT_PURPLE + "Alias updated.");
                     return Arrays.asList(AnvilGUI.ResponseAction.close(), AnvilGUI.ResponseAction.run(editor::open));
                 })
-                .preventClose()
                 .text(editor.getAlias())
                 .title("Item Alias")
                 .plugin(Nascraft.getInstance())
@@ -107,8 +124,13 @@ public class EditItemMenuListener implements Listener {
                     if (slot != AnvilGUI.Slot.OUTPUT) return Collections.emptyList();
                     try {
                         double value = Double.parseDouble(stateSnapshot.getText().trim().replace(',', '.'));
-                        if (!Double.isFinite(value) || value < 0) {
-                            return List.of(AnvilGUI.ResponseAction.replaceInputText("Enter a positive number"));
+                        boolean invalid = !Double.isFinite(value) || value < 0 || (type.equals("initialprice") && value <= 0);
+                        if (invalid) {
+                            return List.of(AnvilGUI.ResponseAction.replaceInputText(
+                                    type.equals("initialprice") ? "Must be greater than 0" : "Enter 0 or a positive number"));
+                        }
+                        if (value > Float.MAX_VALUE && !type.equals("support") && !type.equals("resistance")) {
+                            return List.of(AnvilGUI.ResponseAction.replaceInputText("Value too large"));
                         }
                         switch (type) {
                             case "initialprice" -> editor.setInitialPrice((float) value);
@@ -116,6 +138,9 @@ public class EditItemMenuListener implements Listener {
                             case "noiseintensity" -> editor.setNoiseIntensity((float) value);
                             case "support" -> editor.setSupport((float) value);
                             case "resistance" -> editor.setResistance((float) value);
+                            default -> {
+                                return List.of(AnvilGUI.ResponseAction.replaceInputText("Unknown editor field"));
+                            }
                         }
                         player.sendMessage(ChatColor.LIGHT_PURPLE + title + " set to " + value + ".");
                         return Arrays.asList(AnvilGUI.ResponseAction.close(), AnvilGUI.ResponseAction.run(editor::open));
@@ -123,7 +148,6 @@ public class EditItemMenuListener implements Listener {
                         return List.of(AnvilGUI.ResponseAction.replaceInputText("Invalid number"));
                     }
                 })
-                .preventClose()
                 .text(String.valueOf(currentValue))
                 .title(title)
                 .plugin(Nascraft.getInstance())
@@ -244,6 +268,7 @@ public class EditItemMenuListener implements Listener {
         String[] parts = name.toLowerCase(Locale.ROOT).split("_");
         StringBuilder builder = new StringBuilder();
         for (String part : parts) {
+            if (part.isEmpty()) continue;
             if (builder.length() > 0) builder.append(' ');
             builder.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
         }

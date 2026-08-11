@@ -19,8 +19,9 @@ import org.jfree.ui.RectangleInsets;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 public class ItemChartReduced {
@@ -29,58 +30,52 @@ public class ItemChartReduced {
     private static BufferedImage ditheredDown;
 
     public static void load() {
-        ditheredUp = new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
-        ditheredDown = new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
+        ditheredUp = loadGradient("images/gradient-dithered-up.png");
+        ditheredDown = loadGradient("images/gradient-dithered-down.png");
+    }
 
-        Graphics graphicsUp = ditheredUp.getGraphics();
-        Graphics graphicsDown = ditheredDown.getGraphics();
-
-        try {
-            graphicsUp.drawImage(ImageIO.read(Nascraft.getInstance().getResource("images/gradient-dithered-up.png")), 0, 0, null);
-            graphicsDown.drawImage(ImageIO.read(Nascraft.getInstance().getResource("images/gradient-dithered-down.png")), 0, 0, null);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    private static BufferedImage loadGradient(String path) {
+        BufferedImage fallback = new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
+        try (InputStream input = Nascraft.getInstance().getResource(path)) {
+            if (input == null) {
+                Nascraft.getInstance().getLogger().warning("Missing chart resource " + path + "; using transparent fallback.");
+                return fallback;
+            }
+            BufferedImage source = ImageIO.read(input);
+            if (source == null) return fallback;
+            Graphics2D graphics = fallback.createGraphics();
+            graphics.drawImage(source, 0, 0, 128, 128, null);
+            graphics.dispose();
+            return fallback;
+        } catch (Exception e) {
+            Nascraft.getInstance().getLogger().warning("Could not load chart resource " + path + ": " + e.getMessage());
+            return fallback;
         }
-
-        graphicsUp.dispose();
-        graphicsDown.dispose();
     }
 
     public static BufferedImage getImage(Item item, ChartType chartType) {
+        if (item == null) return new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
 
         Item finalItem = item.isParent() ? item : item.getParent();
+        if (finalItem == null) finalItem = item;
 
         BufferedImage image = createChart(finalItem, chartType).createBufferedImage(128, 128);
 
-        boolean up = false;
+        boolean up = switch (chartType) {
+            case DAY -> finalItem.getPrice().getDayChange() > 0;
+            case MONTH -> finalItem.getPrice().getMonthChange() > 0;
+            case YEAR -> finalItem.getPrice().getYearChange() > 0;
+            case ALL -> finalItem.getPrice().getAllChange() > 0;
+        };
 
-        switch (chartType) {
-            case DAY:
-                up = item.getPrice().getDayChange() > 0; break;
-            case MONTH:
-                up = item.getPrice().getMonthChange() > 0; break;
-            case YEAR:
-                up = item.getPrice().getYearChange() > 0; break;
-            case ALL:
-                up = item.getPrice().getAllChange() > 0; break;
-
-            default: up = false;
-        }
-
-        BufferedImage background;
-
-        if (up) {
-            background = mergeImages(image, ditheredUp);
-        } else {
-            background = mergeImages(image, ditheredDown);
-        }
+        BufferedImage gradient = up ? ditheredUp : ditheredDown;
+        if (gradient == null) gradient = new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage background = mergeImages(image, gradient);
 
         Graphics2D imageGraphics = background.createGraphics();
-
         drawDottedLine(imageGraphics, 2, 31, 125, 31, Color.GRAY, 1, 2);
         drawDottedLine(imageGraphics, 2, 62, 125, 62, Color.GRAY, 1, 2);
         drawDottedLine(imageGraphics, 2, 93, 125, 93, Color.GRAY, 1, 2);
-
         imageGraphics.dispose();
 
         return background;
@@ -90,7 +85,6 @@ public class ItemChartReduced {
         g.setColor(color);
         float[] dashPattern = { dotLength, spaceLength };
         g.setStroke(new BasicStroke(1, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0, dashPattern, 0));
-
         g.drawLine(x1, y1, x2, y2);
     }
 
@@ -105,11 +99,10 @@ public class ItemChartReduced {
                 int pixel2 = (x < img2.getWidth() && y < img2.getHeight()) ? img2.getRGB(x, y) : 0;
 
                 Color color1 = new Color(pixel1, true);
-                Color color2 = new Color(pixel2, true);
-
                 if (color1.getAlpha() == 0) {
                     mergedImage.setRGB(x, y, new Color(0, 0, 0, 0).getRGB());
-                } else if (areColorsSimilar(pixel1, (new Color(0, 155, 0).getRGB()), 15) ||  areColorsSimilar(pixel1, (new Color(155, 0, 0).getRGB()), 15)) {
+                } else if (areColorsSimilar(pixel1, new Color(0, 155, 0).getRGB(), 15)
+                        || areColorsSimilar(pixel1, new Color(155, 0, 0).getRGB(), 15)) {
                     mergedImage.setRGB(x, y, pixel1);
                 } else {
                     mergedImage.setRGB(x, y, pixel2);
@@ -129,114 +122,65 @@ public class ItemChartReduced {
         int green2 = (color2 >> 8) & 0xFF;
         int blue2 = color2 & 0xFF;
 
-        int redDiff = Math.abs(red1 - red2);
-        int greenDiff = Math.abs(green1 - green2);
-        int blueDiff = Math.abs(blue1 - blue2);
-
-        return redDiff <= tolerance && greenDiff <= tolerance && blueDiff <= tolerance;
+        return Math.abs(red1 - red2) <= tolerance
+                && Math.abs(green1 - green2) <= tolerance
+                && Math.abs(blue1 - blue2) <= tolerance;
     }
 
     private static JFreeChart createChart(Item item, ChartType chartType) {
-
         List<Instant> data;
 
-        boolean up;
-
-        switch (chartType) {
-            case DAY:
-                data = DatabaseManager.get().getDatabase().getDayPrices(item);
-                break;
-            case MONTH:
-                data = DatabaseManager.get().getDatabase().getMonthPrices(item);
-                break;
-            case YEAR:
-                data = DatabaseManager.get().getDatabase().getYearPrices(item);
-                break;
-            case ALL:
-                data = DatabaseManager.get().getDatabase().getAllPrices(item);
-                break;
-            default:
-                data = DatabaseManager.get().getDatabase().getDayPrices(item);
+        try {
+            data = switch (chartType) {
+                case DAY -> DatabaseManager.get().getDatabase().getDayPrices(item);
+                case MONTH -> DatabaseManager.get().getDatabase().getMonthPrices(item);
+                case YEAR -> DatabaseManager.get().getDatabase().getYearPrices(item);
+                case ALL -> DatabaseManager.get().getDatabase().getAllPrices(item);
+            };
+        } catch (Exception e) {
+            Nascraft.getInstance().getLogger().warning("Could not load chart history for " + item.getIdentifier() + ": " + e.getMessage());
+            data = Collections.emptyList();
         }
 
         TimeSeries series = createPriceDataset(data, item, chartType);
         TimeSeriesCollection dataset = new TimeSeriesCollection(series);
 
-        switch (chartType) {
-            case DAY:
-                up = (item.getPrice().getDayChange() > 0);
-                break;
-            case MONTH:
-                up = (item.getPrice().getMonthChange() > 0);
-                break;
-            case YEAR:
-                up = (item.getPrice().getYearChange() > 0);
-                break;
-            case ALL:
-                up = (item.getPrice().getAllChange() > 0);
-                break;
-            default:
-                up = (item.getPrice().getDayChange() > 0);
-        }
+        boolean up = switch (chartType) {
+            case DAY -> item.getPrice().getDayChange() > 0;
+            case MONTH -> item.getPrice().getMonthChange() > 0;
+            case YEAR -> item.getPrice().getYearChange() > 0;
+            case ALL -> item.getPrice().getAllChange() > 0;
+        };
 
-        JFreeChart chart = ChartFactory.createTimeSeriesChart(
-                null,
-                null,
-                null,
-                dataset,
-                false,
-                false,
-                false
-        );
-
+        JFreeChart chart = ChartFactory.createTimeSeriesChart(null, null, null, dataset, false, false, false);
         XYPlot plot = chart.getXYPlot();
-
         DateAxis dateAxis = (DateAxis) plot.getDomainAxis();
         NumberAxis rangeAxis = (NumberAxis) plot.getRangeAxis();
 
         plot.setDomainGridlinesVisible(false);
         plot.setRangeGridlinesVisible(false);
-
         dateAxis.setVisible(false);
         rangeAxis.setVisible(false);
-
-        plot.setDomainGridlinesVisible(false);
-        plot.setRangeGridlinesVisible(false);
-
-        plot.setBackgroundPaint(new Color(0,0 ,0,0));
+        plot.setBackgroundPaint(new Color(0, 0, 0, 0));
 
         XYAreaRenderer areaRenderer = new XYAreaRenderer();
-
         XYLineAndShapeRenderer lineRenderer = new XYLineAndShapeRenderer();
         lineRenderer.setSeriesShapesVisible(0, false);
         lineRenderer.setSeriesStroke(0, new BasicStroke(1.5f));
 
-        Color areaColor;
-        if (up) {
-            chart.setBackgroundPaint(new Color(0, 0, 0, 0));
-            areaColor = new Color(255, 255, 255);
-            lineRenderer.setSeriesPaint(0, new Color(0, 155, 0));
-        } else {
-            chart.setBackgroundPaint(new Color(0, 0, 0, 0));
-            areaColor = new Color(255, 255, 255);
-            lineRenderer.setSeriesPaint(0, new Color(155, 0, 0));
-        }
+        chart.setBackgroundPaint(new Color(0, 0, 0, 0));
+        areaRenderer.setSeriesPaint(0, Color.WHITE);
+        lineRenderer.setSeriesPaint(0, up ? new Color(0, 155, 0) : new Color(155, 0, 0));
 
         plot.setInsets(new RectangleInsets(7, 0, 0, 0), true);
-
-        areaRenderer.setSeriesPaint(0, areaColor);
         areaRenderer.setOutline(false);
-
         dateAxis.setLowerMargin(0);
         dateAxis.setUpperMargin(0);
-
         plot.setDataset(1, dataset);
         plot.setRenderer(0, lineRenderer);
         plot.setRenderer(1, areaRenderer);
-
         plot.setOutlineVisible(false);
         chart.setPadding(new RectangleInsets(0, 0, 0, 0));
-
         plot.mapDatasetToRangeAxis(1, 0);
         lineRenderer.setSeriesVisibleInLegend(0, false);
 
@@ -244,68 +188,88 @@ public class ItemChartReduced {
     }
 
     private static TimeSeries createPriceDataset(List<Instant> instants, Item item, ChartType type) {
-
-        TimeSeries series1 = new TimeSeries("Price");
+        TimeSeries series = new TimeSeries("Price");
 
         double firstValue = 0;
-        LocalDateTime timeOld = LocalDateTime.now();
-
         double lastValue = 0;
-        LocalDateTime timeRecent = LocalDateTime.of(2023, 1, 1, 1, 1);
+        LocalDateTime timeOld = null;
+        LocalDateTime timeRecent = null;
+        double high = 0;
+        double low = -1;
+        int validPoints = 0;
 
-        double high = 0, low = -1;
+        if (instants != null) {
+            for (Instant instant : instants) {
+                if (instant == null || !Double.isFinite(instant.getPrice()) || instant.getPrice() <= 0) continue;
 
-        for (Instant instant : instants) {
+                LocalDateTime time = instant.getLocalDateTime();
+                if (time == null) continue;
 
-            LocalDateTime time = instant.getLocalDateTime();
+                Minute minute = new Minute(time.getMinute(), time.getHour(), time.getDayOfMonth(), time.getMonthValue(), time.getYear());
+                series.addOrUpdate(minute, instant.getPrice());
+                validPoints++;
 
-            Minute minute = new Minute(time.getMinute(),
-                    time.getHour(),
-                    time.getDayOfMonth(),
-                    time.getMonthValue(),
-                    time.getYear());
+                high = high == 0 ? instant.getPrice() : Math.max(high, instant.getPrice());
+                low = low < 0 ? instant.getPrice() : Math.min(low, instant.getPrice());
 
-            if (instant.getPrice() != 0) {
-                series1.addOrUpdate(minute, instant.getPrice());
-
-                if (high == 0 || high < instant.getPrice()) high = instant.getPrice();
-                if (instant.getPrice() != 0 && (low == -1 || low > instant.getPrice())) low = instant.getPrice();
-
-                if (time.isAfter(timeRecent)) {
+                if (timeRecent == null || time.isAfter(timeRecent)) {
                     timeRecent = time;
                     lastValue = instant.getPrice();
                 }
-
-                if (time.isBefore(timeOld)) {
+                if (timeOld == null || time.isBefore(timeOld)) {
                     timeOld = time;
                     firstValue = instant.getPrice();
                 }
             }
         }
 
-        switch (type) {
-            case DAY:
-                item.getPrice().setDayHigh(high);
-                item.getPrice().setDayLow(low);
-                item.getPrice().setDayChange((float) (-1 + lastValue / firstValue));
-                break;
-            case MONTH:
-                item.getPrice().setMonthHigh(high);
-                item.getPrice().setMonthLow(low);
-                item.getPrice().setMonthChange((float) (-1 + lastValue / firstValue));
-                break;
-            case YEAR:
-                item.getPrice().setYearHigh(high);
-                item.getPrice().setYearLow(low);
-                item.getPrice().setYearChange((float) (-1 + lastValue / firstValue));
-                break;
-            case ALL:
-                item.getPrice().setAllHigh(high);
-                item.getPrice().setAllLow(low);
-                item.getPrice().setAllChange((float) (-1 + lastValue / firstValue));
-                break;
+        // A fresh market or a recently added item can legitimately have no history yet.
+        // Render a flat current-price line instead of an empty/NaN chart.
+        if (validPoints < 2) {
+            double current = item.getPrice().getValue();
+            if (!Double.isFinite(current) || current <= 0) current = Math.max(0.01, item.getPrice().getInitialValue());
+            LocalDateTime now = LocalDateTime.now();
+            series.addOrUpdate(toMinute(now.minusMinutes(1)), current);
+            series.addOrUpdate(toMinute(now), current);
+            firstValue = current;
+            lastValue = current;
+            high = Math.max(high, current);
+            low = low < 0 ? current : Math.min(low, current);
         }
 
-        return series1;
+        float change = firstValue > 0 && Double.isFinite(firstValue) && Double.isFinite(lastValue)
+                ? (float) ((lastValue / firstValue) - 1.0)
+                : 0f;
+        if (!Float.isFinite(change)) change = 0f;
+        if (low < 0 || !Double.isFinite(low)) low = high;
+
+        switch (type) {
+            case DAY -> {
+                item.getPrice().setDayHigh(high);
+                item.getPrice().setDayLow(low);
+                item.getPrice().setDayChange(change);
+            }
+            case MONTH -> {
+                item.getPrice().setMonthHigh(high);
+                item.getPrice().setMonthLow(low);
+                item.getPrice().setMonthChange(change);
+            }
+            case YEAR -> {
+                item.getPrice().setYearHigh(high);
+                item.getPrice().setYearLow(low);
+                item.getPrice().setYearChange(change);
+            }
+            case ALL -> {
+                item.getPrice().setAllHigh(high);
+                item.getPrice().setAllLow(low);
+                item.getPrice().setAllChange(change);
+            }
+        }
+
+        return series;
+    }
+
+    private static Minute toMinute(LocalDateTime time) {
+        return new Minute(time.getMinute(), time.getHour(), time.getDayOfMonth(), time.getMonthValue(), time.getYear());
     }
 }

@@ -22,6 +22,7 @@ import org.bukkit.inventory.ItemStack;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Locale;
 
 public class MarketEditorInvListener implements Listener {
 
@@ -33,69 +34,58 @@ public class MarketEditorInvListener implements Listener {
 
     @EventHandler
     public void onClickInventory(InventoryClickEvent event) {
-        if (!event.getWhoClicked().hasPermission("nascraft.admin")
-                && !event.getWhoClicked().hasPermission("nascraft.market.admin")) return;
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!player.hasPermission("nascraft.admin") && !player.hasPermission("nascraft.market.admin")) return;
 
         if (event.getView().getTopInventory().getSize() != 54
                 || !event.getView().getTitle().equals("§8§lAdmin view: Market")) return;
 
-        Player player = (Player) event.getWhoClicked();
         int rawSlot = event.getRawSlot();
-
         if (rawSlot < event.getView().getTopInventory().getSize()) event.setCancelled(true);
 
         MarketEditor marketEditor = MarketEditorManager.getInstance().getMarketEditorFromPlayer(player);
         if (marketEditor == null) return;
 
         switch (rawSlot) {
-            case 0:
+            case 0 -> {
                 if (marketEditor.canScrollUp()) {
                     marketEditor.decreaseVerticalOffset();
                     marketEditor.insertItems(event.getView().getTopInventory());
                 }
-                return;
-            case 8:
-                player.closeInventory();
-                return;
-            case 45:
+            }
+            case 8 -> player.closeInventory();
+            case 45 -> {
                 if (marketEditor.canScrollDown()) {
                     marketEditor.increaseVerticalOffset();
                     marketEditor.insertItems(event.getView().getTopInventory());
                 }
-                return;
-            case 46:
-                openNewCategoryPrompt(player);
-                return;
-            case 48:
+            }
+            case 46 -> openNewCategoryPrompt(player);
+            case 48 -> {
                 if (marketEditor.canScrollLeft()) {
                     marketEditor.decreaseHorizontalOffset();
                     marketEditor.insertItems(event.getView().getTopInventory());
                 }
-                return;
-            case 49:
+            }
+            case 49 -> {
                 if (event.getCursor() != null && event.getCursor().getType() != Material.AIR) {
                     startAddingItem(player, event.getCursor());
                 } else {
                     player.sendMessage(ChatColor.RED + "Drop an item onto the hopper to add it to the market!");
                 }
-                return;
-            case 50:
+            }
+            case 50 -> {
                 if (marketEditor.canScrollRight()) {
                     marketEditor.increaseHorizontalOffset();
                     marketEditor.insertItems(event.getView().getTopInventory());
                 }
-                return;
-            case 7:
-                toggleMarket(marketEditor, event);
-                return;
-            case 9:
-            case 18:
-            case 27:
-            case 36:
+            }
+            case 7 -> toggleMarket(marketEditor, event);
+            case 9, 18, 27, 36 -> {
                 Category category = getCategoryFromSlot(rawSlot, player);
                 if (category != null) CategoryEditorManager.getInstance().startEditing(player, category);
-                return;
-            default:
+            }
+            default -> {
                 if (rawSlot < 9 || rawSlot > 44 || event.getCurrentItem() == null
                         || event.getCurrentItem().getType() == Material.AIR) return;
 
@@ -113,13 +103,14 @@ public class MarketEditorInvListener implements Listener {
                 }
 
                 EditorManager.getInstance().startEditing(player, item);
+            }
         }
     }
 
     @EventHandler
     public void onDragInventory(InventoryDragEvent event) {
-        if (!event.getWhoClicked().hasPermission("nascraft.admin")
-                && !event.getWhoClicked().hasPermission("nascraft.market.admin")) return;
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!player.hasPermission("nascraft.admin") && !player.hasPermission("nascraft.market.admin")) return;
 
         if (event.getView().getTopInventory().getSize() != 54
                 || !event.getView().getTitle().equals("§8§lAdmin view: Market")) return;
@@ -127,9 +118,7 @@ public class MarketEditorInvListener implements Listener {
         if (!event.getRawSlots().contains(49)) return;
 
         event.setCancelled(true);
-        Player player = (Player) event.getWhoClicked();
         ItemStack dragged = event.getOldCursor();
-
         if (dragged == null || dragged.getType() == Material.AIR) {
             player.sendMessage(ChatColor.RED + "Drop a valid item onto the hopper!");
             return;
@@ -159,27 +148,37 @@ public class MarketEditorInvListener implements Listener {
                 .onClick((slot, stateSnapshot) -> {
                     if (slot != AnvilGUI.Slot.OUTPUT) return Collections.emptyList();
 
-                    String identifier = stateSnapshot.getText().trim().toLowerCase().replace(' ', '_');
+                    String raw = stateSnapshot.getText().trim();
+                    String identifier = raw.toLowerCase(Locale.ROOT)
+                            .replace(' ', '_')
+                            .replaceAll("[^a-z0-9_-]", "")
+                            .replaceAll("_+", "_");
+
                     if (identifier.isBlank()) {
-                        return Arrays.asList(AnvilGUI.ResponseAction.replaceInputText("Identifier required"));
+                        return Collections.singletonList(AnvilGUI.ResponseAction.replaceInputText("Identifier required"));
+                    }
+                    if (identifier.length() > 48) {
+                        return Collections.singletonList(AnvilGUI.ResponseAction.replaceInputText("Identifier too long"));
                     }
                     if (MarketManager.getInstance().getCategoryFromIdentifier(identifier) != null) {
-                        return Arrays.asList(AnvilGUI.ResponseAction.replaceInputText("Repeated identifier!"));
+                        return Collections.singletonList(AnvilGUI.ResponseAction.replaceInputText("Identifier already exists"));
                     }
 
                     Category category = new Category(identifier);
-                    category.setDisplayName(identifier);
-                    MarketManager.getInstance().getCategories().add(category);
+                    category.setDisplayName(raw.isBlank() ? identifier : raw);
 
                     FileConfiguration categoriesFile = Config.getInstance().getCategoriesFileConfiguration();
-                    categoriesFile.set("categories." + identifier + ".display-name", identifier);
+                    categoriesFile.set("categories." + identifier + ".display-name", category.getDisplayName());
                     try {
                         categoriesFile.save(Config.getInstance().getCategoriesFile());
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        categoriesFile.set("categories." + identifier, null);
+                        stateSnapshot.getPlayer().sendMessage(ChatColor.RED + "Could not create category: " + e.getMessage());
+                        return Collections.singletonList(AnvilGUI.ResponseAction.close());
                     }
 
-                    stateSnapshot.getPlayer().sendMessage(ChatColor.LIGHT_PURPLE + "Category created correctly!");
+                    MarketManager.getInstance().addCategory(category);
+                    stateSnapshot.getPlayer().sendMessage(ChatColor.LIGHT_PURPLE + "Category created: " + category.getDisplayName());
                     return Arrays.asList(
                             AnvilGUI.ResponseAction.close(),
                             AnvilGUI.ResponseAction.run(() -> {
@@ -188,8 +187,7 @@ public class MarketEditorInvListener implements Listener {
                             })
                     );
                 })
-                .preventClose()
-                .text("Identifier...")
+                .text("new_category")
                 .title("New category")
                 .plugin(Nascraft.getInstance())
                 .open(player);

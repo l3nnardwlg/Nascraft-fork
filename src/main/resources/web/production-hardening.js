@@ -27,9 +27,6 @@
             const chart = originalCreateChart(container, options);
             if (container?.id === 'item-price-chart-container') {
                 itemPriceChart = chart;
-
-                // Prices in Nascraft change discretely. A stepped line avoids the
-                // misleading diagonal interpolation between sparse historical points.
                 if (typeof chart.addBaselineSeries === 'function') {
                     const originalAddBaselineSeries = chart.addBaselineSeries.bind(chart);
                     chart.addBaselineSeries = function(seriesOptions = {}) {
@@ -106,8 +103,6 @@
         setTimeout(applyChartRange, 250);
     }
 
-    // The original chart calls fitContent() after loading a new item. Re-apply a
-    // selected short range afterwards so switching assets keeps the chosen view.
     setInterval(() => {
         if (activeChartRange !== 'all') applyChartRange();
     }, 1500);
@@ -119,7 +114,6 @@
         return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('') || `${Date.now()}-${Math.random()}`;
     }
 
-    // Prevent accidental duplicate BUY/SELL submits from double-clicks/retries in the same browser tab.
     window.fetch = async function(input, init = {}) {
         const url = typeof input === 'string' ? input : input?.url || '';
         const isTrade = /\/api\/trade\/(buy|sell)(?:$|\?)/.test(url) && (init.method || 'GET').toUpperCase() === 'POST';
@@ -147,9 +141,7 @@
             try {
                 await navigator.clipboard.writeText(text);
                 return true;
-            } catch (_) {
-                // Fall through to the legacy copy path.
-            }
+            } catch (_) {}
         }
 
         const textarea = document.createElement('textarea');
@@ -163,16 +155,11 @@
         textarea.select();
         textarea.setSelectionRange(0, textarea.value.length);
         let copied = false;
-        try {
-            copied = document.execCommand('copy');
-        } catch (_) {
-            copied = false;
-        }
+        try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
         textarea.remove();
         return copied;
     }
 
-    // Capture before the original handler so HTTP deployments get a reliable fallback.
     document.addEventListener('click', async (event) => {
         const container = event.target.closest?.('#login-command-container');
         if (!container) return;
@@ -183,16 +170,12 @@
         if (!text) return;
 
         const copied = await copyText(text);
-        if (typeof window.showToast === 'function') {
-            window.showToast(copied ? 'Command copied to clipboard!' : 'Copy failed. Please copy the command manually.', copied ? 'success' : 'warning');
-        } else {
-            const previousTitle = container.getAttribute('title');
-            container.setAttribute('title', copied ? 'Copied!' : 'Press Ctrl+C to copy');
-            setTimeout(() => {
-                if (previousTitle) container.setAttribute('title', previousTitle);
-                else container.removeAttribute('title');
-            }, 1500);
-        }
+        const previousTitle = container.getAttribute('title');
+        container.setAttribute('title', copied ? 'Copied!' : 'Press Ctrl+C to copy');
+        setTimeout(() => {
+            if (previousTitle) container.setAttribute('title', previousTitle);
+            else container.removeAttribute('title');
+        }, 1500);
     }, true);
 
     function parseNumber(text) {
@@ -212,9 +195,7 @@
         button.type = 'button';
         button.textContent = 'Max';
         button.className = 'bg-gray-700 hover:bg-gray-600 text-white font-bold px-3 py-2 rounded text-xs';
-
-        const amountRow = amountInput.parentElement;
-        if (amountRow) amountRow.appendChild(button);
+        amountInput.parentElement?.appendChild(button);
 
         button.addEventListener('click', () => {
             const modalText = document.getElementById('modal-body')?.textContent || '';
@@ -234,27 +215,89 @@
             amountInput.value = Math.max(1, max);
             amountInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
-
-        confirmButton.addEventListener('click', () => {
-            confirmButton.disabled = true;
-            confirmButton.classList.add('opacity-60', 'cursor-not-allowed');
-            const oldText = confirmButton.textContent;
-            confirmButton.textContent = 'Processing...';
-            setTimeout(() => {
-                if (document.body.contains(confirmButton)) {
-                    confirmButton.disabled = false;
-                    confirmButton.classList.remove('opacity-60', 'cursor-not-allowed');
-                    confirmButton.textContent = oldText;
-                }
-            }, 5000);
-        }, { once: true });
     }
 
-    const observer = new MutationObserver(() => addMaxButton());
-    const modalBody = document.getElementById('modal-body');
-    if (modalBody) observer.observe(modalBody, { childList: true, subtree: true });
+    function polishBrandHeader() {
+        const header = document.querySelector('aside > div.flex.items-center.justify-between');
+        const brand = header?.firstElementChild;
+        const logo = brand?.querySelector('img');
+        const name = brand?.querySelector('span');
+        if (!brand || !logo || !name || brand.dataset.nascraftPolished) return;
+
+        brand.dataset.nascraftPolished = 'true';
+        brand.className = 'flex flex-col items-center gap-1 min-w-[52px] shrink-0';
+        logo.className = 'w-8 h-8 shrink-0';
+        name.className = 'font-bold text-white text-xs tracking-wide leading-none';
+        name.textContent = 'Nascraft';
+    }
+
+    function applyWebPreferences() {
+        const reduceMotion = localStorage.getItem('nascraft-reduce-motion') === 'true';
+        document.documentElement.style.scrollBehavior = reduceMotion ? 'auto' : '';
+        document.body.classList.toggle('nascraft-reduce-motion', reduceMotion);
+    }
+
+    function closeSettings() {
+        document.getElementById('nascraft-settings-overlay')?.remove();
+    }
+
+    function openSettings() {
+        closeSettings();
+        const overlay = document.createElement('div');
+        overlay.id = 'nascraft-settings-overlay';
+        overlay.className = 'fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4';
+        overlay.innerHTML = `
+            <div class="w-full max-w-md bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div><h3 class="text-lg font-bold text-white">Settings</h3><p class="text-xs text-gray-400">Nascraft Web 1.9.9</p></div>
+                    <button id="nascraft-settings-close" class="text-gray-400 hover:text-white text-xl">×</button>
+                </div>
+                <label class="flex items-center justify-between gap-4 p-3 bg-gray-800/70 rounded-lg cursor-pointer">
+                    <div><div class="text-sm font-semibold text-white">Reduce animations</div><div class="text-xs text-gray-400">Useful on slower browsers and mobile devices.</div></div>
+                    <input id="nascraft-reduce-motion" type="checkbox" class="h-4 w-4" ${localStorage.getItem('nascraft-reduce-motion') === 'true' ? 'checked' : ''}>
+                </label>
+                <div class="mt-3 p-3 border border-dashed border-gray-700 rounded-lg text-xs text-gray-400">
+                    Discord alerts and additional integrations: <span class="font-semibold text-indigo-300">Coming Soon</span>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', event => { if (event.target === overlay) closeSettings(); });
+        document.getElementById('nascraft-settings-close')?.addEventListener('click', closeSettings);
+        document.getElementById('nascraft-reduce-motion')?.addEventListener('change', event => {
+            localStorage.setItem('nascraft-reduce-motion', String(event.target.checked));
+            applyWebPreferences();
+        });
+    }
+
+    function ensureSettingsButton() {
+        const authControls = document.getElementById('auth-controls');
+        const userDisplay = document.getElementById('user-display');
+        if (!authControls || !userDisplay || document.getElementById('nascraft-settings-btn')) return;
+
+        const button = document.createElement('button');
+        button.id = 'nascraft-settings-btn';
+        button.type = 'button';
+        button.textContent = 'Settings';
+        button.className = 'text-indigo-300 hover:text-white text-xs font-medium transition duration-150';
+        button.addEventListener('click', openSettings);
+        userDisplay.insertAdjacentElement('afterend', button);
+    }
+
+    const pageObserver = new MutationObserver(() => {
+        addMaxButton();
+        ensureSettingsButton();
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
         addMaxButton();
         addChartRangeControls();
+        polishBrandHeader();
+        applyWebPreferences();
+        ensureSettingsButton();
+        pageObserver.observe(document.body, { childList: true, subtree: true });
     });
+
+    const style = document.createElement('style');
+    style.textContent = '.nascraft-reduce-motion *, .nascraft-reduce-motion *::before, .nascraft-reduce-motion *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }';
+    document.head.appendChild(style);
 })();

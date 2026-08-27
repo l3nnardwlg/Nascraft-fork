@@ -1,6 +1,7 @@
 package me.bounser.nascraft.commands.admin.marketeditor.edit.category;
 
 import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditor;
+import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditorManager;
 import me.bounser.nascraft.input.ChatInputManager;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -27,12 +28,21 @@ public class CategoryEditorListener implements Listener {
         if (categoryEditor == null) { player.closeInventory(); return; }
         switch (event.getRawSlot()) {
             case 9 -> categoryEditor.save();
-            case 11 -> { CategoryEditorManager.getInstance().clearEditing(player); new MarketEditor(player); }
+            case 11 -> {
+                CategoryEditorManager.getInstance().clearEditing(player);
+                returnToMarket(player);
+            }
             case 17 -> handleDelete(event, categoryEditor);
             case 13 -> openDisplayNameInput(player, categoryEditor);
             case 14 -> { ItemStack cursor = event.getCursor(); if (cursor == null || cursor.getType() == Material.AIR) { player.sendMessage(ChatColor.RED + "Put the desired material on your cursor, then click this option."); return; } categoryEditor.setMaterial(cursor.getType()); player.sendMessage(ChatColor.LIGHT_PURPLE + "Category material changed to: " + cursor.getType().name().toLowerCase()); categoryEditor.open(); }
             default -> { }
         }
+    }
+
+    private void returnToMarket(Player player) {
+        MarketEditor editor = MarketEditorManager.getInstance().getMarketEditorFromPlayer(player);
+        if (editor != null) editor.open();
+        else MarketEditorManager.getInstance().startEditing(player);
     }
 
     private void handleDelete(InventoryClickEvent event, CategoryEditor categoryEditor) { ItemStack deletePanel = event.getCurrentItem(); if (deletePanel == null || !deletePanel.hasItemMeta()) return; ItemMeta metaDelete = deletePanel.getItemMeta(); if (!metaDelete.hasDisplayName()) return; if (metaDelete.getDisplayName().equals(ChatColor.RED + "§lDELETE CATEGORY")) { metaDelete.setDisplayName(ChatColor.DARK_RED + "§lCLICK AGAIN TO CONFIRM"); deletePanel.setItemMeta(metaDelete); event.getView().getTopInventory().setItem(17, deletePanel); } else categoryEditor.removeCategory(); }

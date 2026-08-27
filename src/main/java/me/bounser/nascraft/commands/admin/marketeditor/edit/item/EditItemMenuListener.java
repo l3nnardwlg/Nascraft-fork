@@ -1,5 +1,6 @@
 package me.bounser.nascraft.commands.admin.marketeditor.edit.item;
 
+import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditor;
 import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditorManager;
 import me.bounser.nascraft.input.ChatInputManager;
 import me.bounser.nascraft.managers.currencies.CurrenciesManager;
@@ -36,8 +37,14 @@ public class EditItemMenuListener implements Listener {
         EditItemMenu editor = EditorManager.getInstance().getEditItemMenuFromPlayer(player);
         if (editor == null) { player.closeInventory(); return; }
         switch (event.getRawSlot()) {
-            case 11 -> { EditorManager.getInstance().clearEditing(player); if (MarketEditorManager.getInstance().getMarketEditorFromPlayer(player) != null) MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open(); }
-            case 9 -> editor.save();
+            case 11 -> {
+                EditorManager.getInstance().clearEditing(player);
+                returnToMarket(player);
+            }
+            case 9 -> {
+                editor.save();
+                if (EditorManager.getInstance().getEditItemMenuFromPlayer(player) == null) returnToMarket(player);
+            }
             case 10 -> openItemSelector(player, editor, "", 0);
             case 17 -> handleDelete(event, player, editor);
             case 4 -> openNumberInput(player, editor, "Initial price", editor.getInitialPrice(), "initialprice");
@@ -55,6 +62,12 @@ public class EditItemMenuListener implements Listener {
     }
 
     @EventHandler public void onClose(InventoryCloseEvent event) { if (event.getView().getTitle().equals(SELECTOR_TITLE)) selectors.remove(event.getPlayer().getUniqueId()); }
+
+    private void returnToMarket(Player player) {
+        MarketEditor editor = MarketEditorManager.getInstance().getMarketEditorFromPlayer(player);
+        if (editor != null) editor.open();
+        else MarketEditorManager.getInstance().startEditing(player);
+    }
 
     private void handleDelete(InventoryClickEvent event, Player player, EditItemMenu editor) {
         ItemStack deletePanel = event.getCurrentItem(); if (deletePanel == null || !deletePanel.hasItemMeta()) return;

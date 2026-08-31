@@ -1,5 +1,7 @@
 package me.bounser.nascraft;
 
+import me.bounser.nascraft.commands.orders.OrdersCommand;
+import me.bounser.nascraft.market.playerorders.PlayerOrdersManager;
 import me.bounser.nascraft.scheduler.FoliaScheduler;
 import me.bounser.nascraft.web.WebConfig;
 import me.bounser.nascraft.web.WebServerManager;
@@ -15,7 +17,22 @@ public class NascraftWebEntrypoint extends Nascraft {
     private static final String WEB_BUNDLE_VERSION = "1.9.9-market-web-polish-r2";
     private static final List<String> WEB_RESOURCES = List.of("web/index.html", "web/style.css", "web/script.js", "web/production-hardening.js", "images/logo.png", "images/logo-color.png", "images/fire.png");
     private WebServerManager webServerManager;
-    @Override public void onEnable() { super.onEnable(); WebConfig webConfig = new WebConfig(this); if (!webConfig.enabled()) return; restoreBundledWebFrontend(); webServerManager = new WebServerManager(this, webConfig); FoliaScheduler.runAsync(this, webServerManager::startServer); }
+
+    @Override
+    public void onEnable() {
+        super.onEnable();
+
+        PlayerOrdersManager playerOrders = PlayerOrdersManager.getInstance();
+        getServer().getPluginManager().registerEvents(playerOrders, this);
+        new OrdersCommand();
+
+        WebConfig webConfig = new WebConfig(this);
+        if (!webConfig.enabled()) return;
+        restoreBundledWebFrontend();
+        webServerManager = new WebServerManager(this, webConfig);
+        FoliaScheduler.runAsync(this, webServerManager::startServer);
+    }
+
     @Override public void onDisable() { if (webServerManager != null && webServerManager.isRunning()) { getLogger().info("Stopping web server..."); webServerManager.stopServer(); } super.onDisable(); }
     private void restoreBundledWebFrontend() { File webDirectory = new File(getDataFolder(), "web"); File marker = new File(webDirectory, ".nascraft-web-version"); try { if (marker.isFile() && Files.readString(marker.toPath(), StandardCharsets.UTF_8).trim().equals(WEB_BUNDLE_VERSION)) { getLogger().info("Nascraft web frontend " + WEB_BUNDLE_VERSION + " is present at " + webDirectory.getAbsolutePath()); return; } } catch (IOException exception) { getLogger().log(Level.WARNING, "Could not read web frontend version marker; restoring bundled frontend.", exception); }
         try { for (String resource : WEB_RESOURCES) { File destination = new File(getDataFolder(), resource); File parent = destination.getParentFile(); if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Could not create directory " + parent); saveResource(resource, true); getLogger().info("Restored bundled web resource: " + resource); } ensureProductionHardeningScript(new File(webDirectory, "index.html")); Files.writeString(marker.toPath(), WEB_BUNDLE_VERSION, StandardCharsets.UTF_8); getLogger().info("Restored Nascraft web frontend " + WEB_BUNDLE_VERSION + " to " + webDirectory.getAbsolutePath()); } catch (IOException | IllegalArgumentException exception) { getLogger().log(Level.SEVERE, "Could not restore bundled Nascraft web frontend.", exception); }

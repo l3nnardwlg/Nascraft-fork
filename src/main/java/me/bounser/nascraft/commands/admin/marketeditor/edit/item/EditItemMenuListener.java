@@ -41,7 +41,10 @@ public class EditItemMenuListener implements Listener {
                 EditorManager.getInstance().clearEditing(player);
                 returnToMarket(player);
             }
-            case 9 -> editor.save();
+            case 9 -> {
+                if (editor.save()) returnToMarket(player);
+                else editor.open();
+            }
             case 10 -> openItemSelector(player, editor, "", 0);
             case 17 -> handleDelete(event, player, editor);
             case 4 -> openNumberInput(player, editor, "Initial price", editor.getInitialPrice(), "initialprice");

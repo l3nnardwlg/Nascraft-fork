@@ -20,6 +20,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 public class MarketEditorInvListener implements Listener {
     private static MarketEditorInvListener instance = null;
@@ -36,9 +37,6 @@ public class MarketEditorInvListener implements Listener {
         MarketEditor marketEditor = MarketEditorManager.getInstance().getMarketEditorFromPlayer(player);
         if (marketEditor == null) return;
 
-        // Quick-add from the player's inventory. This also gives admins a reliable
-        // fallback if their client/server combination does not report a cursor drop
-        // onto the hopper the way Bukkit expects.
         if (rawSlot >= topSize && event.isShiftClick()) {
             ItemStack clicked = event.getCurrentItem();
             if (clicked != null && clicked.getType() != Material.AIR) {
@@ -130,7 +128,7 @@ public class MarketEditorInvListener implements Listener {
         ItemStack itemStack = source.clone();
         itemStack.setAmount(1);
         for (String key : Config.getInstance().getIgnoredKeys()) {
-            NBT.modify(itemStack, nbt -> nbt.removeKey(key));
+            NBT.modify(itemStack, (Consumer<de.tr7zw.changeme.nbtapi.iface.ReadWriteItemNBT>) nbt -> nbt.removeKey(key));
         }
         EditorManager.getInstance().startEditing(player, itemStack);
     }

@@ -130,7 +130,7 @@ public class MarketEditorInvListener implements Listener {
         ItemStack itemStack = source.clone();
         itemStack.setAmount(1);
         for (String key : Config.getInstance().getIgnoredKeys()) {
-            NBT.modify(itemStack, nbt -> nbt.removeKey(key));
+            NBT.modify(itemStack, (java.util.function.Consumer<de.tr7zw.changeme.nbtapi.iface.ReadWriteItemNBT>) nbt -> nbt.removeKey(key));
         }
         EditorManager.getInstance().startEditing(player, itemStack);
     }

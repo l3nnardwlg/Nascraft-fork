@@ -23,12 +23,98 @@ import java.util.Locale;
 
 public class MarketSearchListener implements Listener {
     private static final int SEARCH_SLOT = 0;
-    @EventHandler public void onOpen(InventoryOpenEvent event) { if (!(event.getPlayer() instanceof Player player)) return; if (event.getInventory().getSize() != Config.getInstance().getMainMenuSize()) return; FoliaScheduler.runAtEntityLater(Nascraft.getInstance(), player, () -> { if (!player.hasMetadata("NascraftMenu") || !"main-menu".equals(player.getMetadata("NascraftMenu").get(0).asString()) || player.getOpenInventory().getTopInventory().getSize() != Config.getInstance().getMainMenuSize()) return; ItemStack search = new ItemStack(Material.COMPASS); ItemMeta meta = search.getItemMeta(); meta.setDisplayName(ChatColor.GOLD + "§lSearch Item"); meta.setLore(List.of(ChatColor.GRAY + "Search by item name, alias", ChatColor.GRAY + "or market identifier.", "", ChatColor.GREEN + "§lCLICK TO SEARCH")); search.setItemMeta(meta); player.getOpenInventory().getTopInventory().setItem(SEARCH_SLOT, search); }, 1L); }
-    @EventHandler(priority = EventPriority.HIGHEST) public void onClick(InventoryClickEvent event) { if (!(event.getWhoClicked() instanceof Player player)) return; if (!player.hasMetadata("NascraftMenu") || !"main-menu".equals(player.getMetadata("NascraftMenu").get(0).asString()) || event.getRawSlot() != SEARCH_SLOT) return; event.setCancelled(true); openSearch(player); }
-    private void openSearch(Player player) { ChatInputManager.getInstance().request(player, "Enter the market item to search for.", raw -> { String query = normalize(raw); if (query.isBlank()) { player.sendMessage(ChatColor.RED + "Enter an item name."); reopenMarket(player); return; } Item match = findBestMatch(query); if (match == null) { player.sendMessage(ChatColor.RED + "No market item found for: " + raw); reopenMarket(player); return; } MarketMenuManager.getInstance().setMenuOfPlayer(player, new BuySellMenu(player, match)); }, () -> reopenMarket(player)); }
+    private static final String SEARCH_NAME = ChatColor.GOLD + "§lSearch Item";
+
+    @EventHandler
+    public void onOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (event.getInventory().getSize() != Config.getInstance().getMainMenuSize()) return;
+
+        FoliaScheduler.runAtEntityLater(Nascraft.getInstance(), player, () -> {
+            if (!player.hasMetadata("NascraftMenu")
+                    || !"main-menu".equals(player.getMetadata("NascraftMenu").get(0).asString())
+                    || player.getOpenInventory().getTopInventory().getSize() != Config.getInstance().getMainMenuSize()) return;
+
+            ItemStack search = new ItemStack(Material.COMPASS);
+            ItemMeta meta = search.getItemMeta();
+            meta.setDisplayName(SEARCH_NAME);
+            meta.setLore(List.of(
+                    ChatColor.GRAY + "Search by item name, alias",
+                    ChatColor.GRAY + "or market identifier.",
+                    "",
+                    ChatColor.GREEN + "§lCLICK TO SEARCH"
+            ));
+            search.setItemMeta(meta);
+            player.getOpenInventory().getTopInventory().setItem(SEARCH_SLOT, search);
+        }, 1L);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getRawSlot() != SEARCH_SLOT) return;
+
+        // A click in a category can open the main menu earlier in the same event.
+        // Never treat that old click as a search click just because the metadata
+        // has already changed to main-menu.
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getType() != Material.COMPASS || !clicked.hasItemMeta()) return;
+        ItemMeta meta = clicked.getItemMeta();
+        if (!meta.hasDisplayName() || !SEARCH_NAME.equals(meta.getDisplayName())) return;
+
+        if (!player.hasMetadata("NascraftMenu")
+                || !"main-menu".equals(player.getMetadata("NascraftMenu").get(0).asString())) return;
+
+        event.setCancelled(true);
+        openSearch(player);
+    }
+
+    private void openSearch(Player player) {
+        ChatInputManager.getInstance().request(player, "Enter the market item to search for.", raw -> {
+            String query = normalize(raw);
+            if (query.isBlank()) {
+                player.sendMessage(ChatColor.RED + "Enter an item name.");
+                reopenMarket(player);
+                return;
+            }
+
+            Item match = findBestMatch(query);
+            if (match == null) {
+                player.sendMessage(ChatColor.RED + "No market item found for: " + raw);
+                reopenMarket(player);
+                return;
+            }
+
+            MarketMenuManager.getInstance().setMenuOfPlayer(player, new BuySellMenu(player, match));
+        }, () -> reopenMarket(player));
+    }
+
     private void reopenMarket(Player player) { player.performCommand("market"); }
-    private Item findBestMatch(String query) { return MarketManager.getInstance().getAllItems().stream().filter(item -> matches(item, query)).min(Comparator.comparingInt((Item item) -> matchRank(item, query)).thenComparing(item -> item.getName().toLowerCase(Locale.ROOT))).orElse(null); }
-    private boolean matches(Item item, String query) { return normalize(item.getIdentifier()).contains(query) || normalize(item.getName()).contains(query) || normalize(item.getItemStack().getType().name()).contains(query); }
-    private int matchRank(Item item, String query) { String identifier = normalize(item.getIdentifier()), name = normalize(item.getName()), material = normalize(item.getItemStack().getType().name()); if (identifier.equals(query) || name.equals(query) || material.equals(query)) return 0; if (identifier.startsWith(query) || name.startsWith(query) || material.startsWith(query)) return 1; return 2; }
-    private String normalize(String value) { return value == null ? "" : value.toLowerCase(Locale.ROOT).trim().replace(' ', '_'); }
+
+    private Item findBestMatch(String query) {
+        return MarketManager.getInstance().getAllItems().stream()
+                .filter(item -> matches(item, query))
+                .min(Comparator.comparingInt((Item item) -> matchRank(item, query))
+                        .thenComparing(item -> item.getName().toLowerCase(Locale.ROOT)))
+                .orElse(null);
+    }
+
+    private boolean matches(Item item, String query) {
+        return normalize(item.getIdentifier()).contains(query)
+                || normalize(item.getName()).contains(query)
+                || normalize(item.getItemStack().getType().name()).contains(query);
+    }
+
+    private int matchRank(Item item, String query) {
+        String identifier = normalize(item.getIdentifier());
+        String name = normalize(item.getName());
+        String material = normalize(item.getItemStack().getType().name());
+        if (identifier.equals(query) || name.equals(query) || material.equals(query)) return 0;
+        if (identifier.startsWith(query) || name.startsWith(query) || material.startsWith(query)) return 1;
+        return 2;
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).trim().replace(' ', '_');
+    }
 }

@@ -13,6 +13,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -46,6 +47,35 @@ public class MarketSearchListener implements Listener {
             ));
             search.setItemMeta(meta);
             player.getOpenInventory().getTopInventory().setItem(SEARCH_SLOT, search);
+        }, 1L);
+    }
+
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!player.hasMetadata("NascraftMenu")) return;
+
+        String closedMenu = player.getMetadata("NascraftMenu").get(0).asString();
+
+        // InventoryListener intentionally defers cleanup because switching between
+        // Nascraft menus also fires InventoryCloseEvent. Its previous implementation
+        // never removed NascraftMenu on a real close, which left every later inventory
+        // click cancelled. One tick later, only keep the state if another Nascraft menu
+        // actually replaced the one that was closed.
+        FoliaScheduler.runAtEntityLater(Nascraft.getInstance(), player, () -> {
+            if (!player.isOnline() || !player.hasMetadata("NascraftMenu")) return;
+
+            String currentMenu = player.getMetadata("NascraftMenu").get(0).asString();
+            if (!closedMenu.equals(currentMenu)) return;
+
+            player.removeMetadata("NascraftMenu", Nascraft.getInstance());
+            if (player.hasMetadata("NascraftQuantity")) {
+                player.removeMetadata("NascraftQuantity", Nascraft.getInstance());
+            }
+            if (player.hasMetadata("NascraftPage")) {
+                player.removeMetadata("NascraftPage", Nascraft.getInstance());
+            }
+            MarketMenuManager.getInstance().removeMenuFromPlayer(player);
         }, 1L);
     }
 

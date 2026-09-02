@@ -231,27 +231,27 @@ public class EditItemMenu {
     public void toggleBuyEnabled() { buyEnabled = !buyEnabled; }
     public void toggleSellEnabled() { sellEnabled = !sellEnabled; }
 
-    public void save() {
+    public boolean save() {
         if (itemStack == null || itemStack.getType() == Material.AIR) {
             player.sendMessage(ChatColor.RED + "Select a valid item before saving.");
-            return;
+            return false;
         }
         if (alias == null || alias.trim().isEmpty()) {
             player.sendMessage(ChatColor.RED + "Alias cannot be empty.");
-            return;
+            return false;
         }
         if (!Double.isFinite(initialPrice) || initialPrice <= 0) {
             player.sendMessage(ChatColor.RED + "Initial price must be greater than zero.");
-            return;
+            return false;
         }
         if (!Float.isFinite(elasticity) || elasticity < 0 || !Float.isFinite(noiseIntensity) || noiseIntensity < 0
                 || !Double.isFinite(support) || support < 0 || !Double.isFinite(resistance) || resistance < 0) {
             player.sendMessage(ChatColor.RED + "One or more market values are invalid.");
-            return;
+            return false;
         }
         if (category == null || currency == null) {
             player.sendMessage(ChatColor.RED + "Category and currency are required.");
-            return;
+            return false;
         }
 
         FileConfiguration items = Config.getInstance().getItemsFileConfiguration();
@@ -272,8 +272,6 @@ public class EditItemMenu {
         items.set("items." + identifier + ".resistance", resistance == 0 ? null : resistance);
         items.set("items." + identifier + ".buy-enabled", buyEnabled);
         items.set("items." + identifier + ".sell-enabled", sellEnabled);
-
-        if (item != null) item.setItemStack(itemStack);
         items.set("items." + identifier + ".item-stack", NBT.itemStackToNBT(itemStack).toString());
         items.set("items." + identifier + ".currency",
                 currency.equals(CurrenciesManager.getInstance().getDefaultCurrency()) ? null : currency.getCurrencyIdentifier());
@@ -292,10 +290,11 @@ public class EditItemMenu {
             items.save(Config.getInstance().getItemsFile());
         } catch (IOException e) {
             player.sendMessage(ChatColor.RED + "Could not save market configuration: " + e.getMessage());
-            return;
+            return false;
         }
 
         if (item != null) {
+            item.setItemStack(itemStack.clone());
             item.setCategory(category);
             item.setCurrency(currency);
             item.changeProperties(initialPrice, alias.trim(), elasticity, noiseIntensity, support, resistance);
@@ -306,7 +305,7 @@ public class EditItemMenu {
             }
             player.sendMessage(ChatColor.LIGHT_PURPLE + "Item changes saved successfully.");
         } else {
-            item = new Item(itemStack, identifier, alias.trim(), category, ImagesManager.getInstance().getImage(identifier));
+            item = new Item(itemStack.clone(), identifier, alias.trim(), category, ImagesManager.getInstance().getImage(identifier));
             item.setCurrency(currency);
             category.addItem(item);
             MarketManager.getInstance().addItem(item);
@@ -315,9 +314,7 @@ public class EditItemMenu {
         }
 
         EditorManager.getInstance().clearEditing(player);
-        if (MarketEditorManager.getInstance().getMarketEditorFromPlayer(player) != null) {
-            MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open();
-        }
+        return true;
     }
 
     public void removeItem() {
@@ -331,19 +328,18 @@ public class EditItemMenu {
         FileConfiguration items = Config.getInstance().getItemsFileConfiguration();
         items.set("items." + item.getIdentifier(), null);
         FileConfiguration categories = Config.getInstance().getCategoriesFileConfiguration();
-        List<String> itemsOfPrevCategory = categories.getStringList("categories." + prevCategory.getIdentifier() + ".items");
-        itemsOfPrevCategory.remove(item.getIdentifier());
-        categories.set("categories." + prevCategory.getIdentifier() + ".items", itemsOfPrevCategory);
+        List<String> categoryItems = categories.getStringList("categories." + prevCategory.getIdentifier() + ".items");
+        categoryItems.remove(item.getIdentifier());
+        categories.set("categories." + prevCategory.getIdentifier() + ".items", categoryItems);
         try {
-            categories.save(Config.getInstance().getCategoriesFile());
             items.save(Config.getInstance().getItemsFile());
+            categories.save(Config.getInstance().getCategoriesFile());
         } catch (IOException e) {
-            player.sendMessage(ChatColor.RED + "Could not delete item: " + e.getMessage());
+            player.sendMessage(ChatColor.RED + "Could not delete market item: " + e.getMessage());
             return;
         }
         EditorManager.getInstance().clearEditing(player);
-        if (MarketEditorManager.getInstance().getMarketEditorFromPlayer(player) != null) {
+        if (MarketEditorManager.getInstance().getMarketEditorFromPlayer(player) != null)
             MarketEditorManager.getInstance().getMarketEditorFromPlayer(player).open();
-        }
     }
 }

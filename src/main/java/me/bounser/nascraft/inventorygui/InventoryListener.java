@@ -829,18 +829,22 @@ public class InventoryListener implements Listener {
 
         Player player = (Player) event.getPlayer();
 
-        MarketMenuManager.getInstance().removeMenuFromPlayer(player);
+        // Opening another Nascraft inventory fires a close event for the previous one.
+        // Defer cleanup one tick and only clear state if the player did not transition
+        // into another Nascraft menu in the meantime.
+        Bukkit.getScheduler().runTask(Nascraft.getInstance(), () -> {
+            if (!player.isOnline()) return;
+            if (player.hasMetadata("NascraftMenu")) return;
 
-        if (player.hasMetadata("NascraftMenu")) {
-            player.removeMetadata("NascraftMenu", Nascraft.getInstance());
-        }
+            MarketMenuManager.getInstance().removeMenuFromPlayer(player);
 
-        if (player.hasMetadata("NascraftQuantity")) {
-            player.removeMetadata("NascraftQuantity", Nascraft.getInstance());
-        }
+            if (player.hasMetadata("NascraftQuantity")) {
+                player.removeMetadata("NascraftQuantity", Nascraft.getInstance());
+            }
 
-        if (player.hasMetadata("NascraftPage")) {
-            player.removeMetadata("NascraftPage", Nascraft.getInstance());
-        }
+            if (player.hasMetadata("NascraftPage")) {
+                player.removeMetadata("NascraftPage", Nascraft.getInstance());
+            }
+        });
     }
 }

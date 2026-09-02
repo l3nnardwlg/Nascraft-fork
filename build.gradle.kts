@@ -21,7 +21,7 @@ dependencies {
     compileOnly("com.discordsrv:discordsrv:1.28.0"); compileOnly("commons-io:commons-io:2.14.0"); compileOnly("net.dv8tion:JDA:5.0.0-beta.18"); compileOnly("net.kyori:adventure-text-minimessage:4.17.0")
     implementation("org.bstats:bstats-bukkit:3.0.2")
     implementation("net.wesjd:anvilgui:1.10.4-SNAPSHOT")
-    compileOnly("redis.clients:jedis:5.1.2"); implementation("org.mindrot:jbcrypt:0.4"); implementation("de.tr7zw:item-nbt-api:2.13.1")
+    compileOnly("redis.clients:jedis:5.1.2"); implementation("org.mindrot:jbcrypt:0.4"); implementation("de.tr7zw:item-nbt-api:2.15.5")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.3"); testRuntimeOnly("org.junit.platform:junit-platform-launcher"); testImplementation("org.xerial:sqlite-jdbc:3.43.0.0"); testImplementation("org.mockito:mockito-core:5.23.0"); testImplementation("org.mockito:mockito-junit-jupiter:5.23.0"); testImplementation("io.papermc.paper:paper-api:26.2.build.+")
 }
 val upstreamWebJar = layout.buildDirectory.file("upstream/Nascraft-1.9.1.jar"); val originalWebResources = layout.buildDirectory.dir("generated/original-web-resources")

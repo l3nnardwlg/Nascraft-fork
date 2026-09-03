@@ -450,7 +450,13 @@ public class BuySellMenu implements MenuPage{
             gui.setItem(sellButtons.get(amount), sellButton);
         }
 
-        player.openInventory(gui);
+        // Refresh the contents in-place after a transaction. Reopening the same
+        // inventory here fires InventoryCloseEvent and can clear NascraftMenu,
+        // making every following buy/sell click stop working.
+        if (player.getOpenInventory().getTopInventory() != gui) {
+            player.openInventory(gui);
+        }
+
         player.setMetadata("NascraftMenu", new FixedMetadataValue(Nascraft.getInstance(), "item-menu-" + item.getIdentifier()));
         MarketMenuManager.getInstance().setMenuOfPlayer(player, this);
     }

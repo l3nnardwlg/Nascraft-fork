@@ -34,9 +34,24 @@ public class ImagesManager {
 
         BufferedImage image = ItemTextureProvider.getImage(material);
         if (image == null) {
+            Material fallback = getTextureFallback(material);
+            if (fallback != null) image = ItemTextureProvider.getImage(fallback);
+        }
+        if (image == null) {
             Nascraft.getInstance().getLogger().info("Unable to render texture for material: " + material.name().toLowerCase());
         }
         return image;
+    }
+
+    private Material getTextureFallback(Material material) {
+        String name = material.name();
+
+        if (name.endsWith("_CARPET")) {
+            String woolName = name.substring(0, name.length() - "_CARPET".length()) + "_WOOL";
+            return Material.matchMaterial(woolName);
+        }
+
+        return null;
     }
 
     private BufferedImage loadOverride(String identifier) {

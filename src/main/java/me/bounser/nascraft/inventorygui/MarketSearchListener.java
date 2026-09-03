@@ -15,6 +15,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
@@ -56,14 +57,17 @@ public class MarketSearchListener implements Listener {
         if (!player.hasMetadata("NascraftMenu")) return;
 
         String closedMenu = player.getMetadata("NascraftMenu").get(0).asString();
+        Inventory closedInventory = event.getInventory();
 
-        // InventoryListener intentionally defers cleanup because switching between
-        // Nascraft menus also fires InventoryCloseEvent. Its previous implementation
-        // never removed NascraftMenu on a real close, which left every later inventory
-        // click cancelled. One tick later, only keep the state if another Nascraft menu
-        // actually replaced the one that was closed.
+        // Menu refreshes in several Nascraft GUIs intentionally reopen the same
+        // Inventory instance. That also fires InventoryCloseEvent, but it is not a
+        // real close and must not clear NascraftMenu. Defer one tick so Paper has
+        // finished the transition, then keep the state if that exact inventory is
+        // still the player's top inventory.
         FoliaScheduler.runAtEntityLater(Nascraft.getInstance(), player, () -> {
             if (!player.isOnline() || !player.hasMetadata("NascraftMenu")) return;
+
+            if (player.getOpenInventory().getTopInventory() == closedInventory) return;
 
             String currentMenu = player.getMetadata("NascraftMenu").get(0).asString();
             if (!closedMenu.equals(currentMenu)) return;

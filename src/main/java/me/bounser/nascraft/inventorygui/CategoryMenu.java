@@ -167,7 +167,13 @@ public class CategoryMenu implements MenuPage {
             );
         }
 
-        player.openInventory(gui);
+        // Do not reopen the same inventory while paging. Reopening triggers
+        // InventoryCloseEvent, which can clear NascraftMenu one tick later and
+        // leave the category GUI unprotected so its item icons can be taken.
+        if (player.getOpenInventory().getTopInventory() != gui) {
+            player.openInventory(gui);
+        }
+
         player.setMetadata("NascraftMenu", new FixedMetadataValue(Nascraft.getInstance(), "category-menu-" + category.getIdentifier()));
         player.setMetadata("NascraftPage", new FixedMetadataValue(Nascraft.getInstance(), page));
         MarketMenuManager.getInstance().setMenuOfPlayer(player, this);

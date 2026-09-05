@@ -2,6 +2,7 @@ package me.bounser.nascraft.commands.market;
 
 import me.bounser.nascraft.Nascraft;
 import me.bounser.nascraft.commands.Command;
+import me.bounser.nascraft.commands.pay.PayCommand;
 import me.bounser.nascraft.config.lang.Lang;
 import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.inventorygui.*;
@@ -33,6 +34,7 @@ public class MarketCommand extends Command {
                 "Direct access to the market",
                 "nascraft.market"
         );
+        new PayCommand();
         Bukkit.getPluginManager().registerEvents(new MarketAvailabilityListener(), Nascraft.getInstance());
     }
 

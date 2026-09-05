@@ -1,7 +1,6 @@
 package me.bounser.nascraft.commands.pay;
 
 import me.bounser.nascraft.commands.Command;
-import me.bounser.nascraft.config.Config;
 import me.bounser.nascraft.managers.MoneyManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -21,7 +20,7 @@ public class PayCommand extends Command {
     public PayCommand() {
         super(
                 "pay",
-                new String[]{Config.getInstance().getCommandAlias("pay")},
+                new String[0],
                 "Pay money directly to another player",
                 "nascraft.pay"
         );

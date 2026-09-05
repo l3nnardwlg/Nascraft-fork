@@ -15,21 +15,22 @@ import java.util.List;
 
 public class PayCommand extends Command {
 
+    private static final String PERMISSION = "nascraft.pay";
     private static final DecimalFormat AMOUNT_FORMAT = new DecimalFormat("#,##0.##");
 
     public PayCommand() {
-        super(
-                "pay",
-                new String[0],
-                "Pay money directly to another player",
-                "nascraft.pay"
-        );
+        super("pay", new String[0], "Pay money directly to another player", PERMISSION);
     }
 
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(ChatColor.RED + "Only players can use /pay.");
+            return;
+        }
+
+        if (!player.hasPermission(PERMISSION)) {
+            player.sendMessage(ChatColor.RED + "You do not have permission to use /pay.");
             return;
         }
 

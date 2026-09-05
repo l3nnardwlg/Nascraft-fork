@@ -6,6 +6,7 @@ import me.bounser.nascraft.managers.currencies.Currency;
 import me.bounser.nascraft.scheduler.FoliaScheduler;
 import me.clip.placeholderapi.PlaceholderAPI;
 import net.milkbowl.vault.economy.Economy;
+import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -13,6 +14,14 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 public class MoneyManager {
 
     private static MoneyManager instance;
+
+    public enum TransferResult {
+        SUCCESS,
+        INSUFFICIENT_FUNDS,
+        ECONOMY_UNAVAILABLE,
+        WITHDRAW_FAILED,
+        DEPOSIT_FAILED
+    }
 
     public static MoneyManager getInstance() {
         return instance == null ? instance = new MoneyManager() : instance;
@@ -50,6 +59,32 @@ public class MoneyManager {
             );
         }
         return provider;
+    }
+
+    /**
+     * Transfers Vault currency between two players. If crediting the recipient
+     * fails after a successful withdrawal, the sender is refunded immediately.
+     */
+    public TransferResult transfer(OfflinePlayer sender, OfflinePlayer recipient, double amount) {
+        Economy economy = resolveEconomy();
+        if (economy == null) return TransferResult.ECONOMY_UNAVAILABLE;
+        if (!Double.isFinite(amount) || amount <= 0) return TransferResult.WITHDRAW_FAILED;
+        if (!economy.has(sender, amount)) return TransferResult.INSUFFICIENT_FUNDS;
+
+        EconomyResponse withdrawal = economy.withdrawPlayer(sender, amount);
+        if (!withdrawal.transactionSuccess()) return TransferResult.WITHDRAW_FAILED;
+
+        EconomyResponse deposit = economy.depositPlayer(recipient, amount);
+        if (deposit.transactionSuccess()) return TransferResult.SUCCESS;
+
+        EconomyResponse refund = economy.depositPlayer(sender, amount);
+        if (!refund.transactionSuccess()) {
+            Nascraft.getInstance().getLogger().severe(
+                    "Failed to refund " + amount + " to " + sender.getName()
+                            + " after a failed /pay deposit to " + recipient.getName() + "."
+            );
+        }
+        return TransferResult.DEPOSIT_FAILED;
     }
 
     public void withdraw(OfflinePlayer player, Currency currency, double amount, double taxRate) {
@@ -166,7 +201,6 @@ public class MoneyManager {
     public boolean hasEnoughMoney(OfflinePlayer player, Currency currency, double quantity) {
 
         switch (currency.getCurrencyType()) {
-
             case VAULT:
                 Economy provider = resolveEconomy();
                 if (provider == null) {
@@ -189,7 +223,6 @@ public class MoneyManager {
     public double getBalance(OfflinePlayer player, Currency currency) {
 
         switch (currency.getCurrencyType()) {
-
             case VAULT:
                 Economy provider = resolveEconomy();
                 if (provider == null) return 0;

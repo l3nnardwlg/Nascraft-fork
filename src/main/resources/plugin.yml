@@ -8,6 +8,68 @@ authors: [ bounser, agentfrettchen ]
 description: Market valuations in minecraft
 
 permissions:
+  # Normal gameplay should work out of the box. Server owners can revoke this
+  # pack (or individual child nodes) with their permission plugin if desired.
+  nascraft.player:
+    description: Grants all normal player-facing Nascraft features
+    default: true
+    children:
+      nascraft.market: true
+      nascraft.market.gui: true
+      nascraft.sellall: true
+      nascraft.sellhand: true
+      nascraft.sellmenu: true
+      nascraft.portfolio: true
+      nascraft.alert: true
+      nascraft.discord: true
+      nascraft.linkable: true
+      nascraft.pay: true
+
+  nascraft.market:
+    description: Allows normal market usage, including buy and sell actions
+    default: false
+
+  nascraft.market.gui:
+    description: Allows opening and navigating the market GUI
+    default: false
+
+  nascraft.sellall:
+    description: Allows use of /sellall
+    default: false
+
+  nascraft.sellhand:
+    description: Allows use of /sellhand
+    default: false
+
+  nascraft.sellmenu:
+    description: Allows use of the sell inventory/menu command
+    default: false
+
+  nascraft.portfolio:
+    description: Allows use of the player portfolio
+    default: false
+
+  nascraft.alert:
+    description: Allows player market alerts
+    default: false
+
+  nascraft.discord:
+    description: Allows player Discord integration commands
+    default: false
+
+  nascraft.linkable:
+    description: Allows linking a Minecraft account to Discord
+    default: false
+
+  nascraft.pay:
+    description: Allows player-to-player payments
+    default: false
+
+  # Administrative capabilities stay restricted.
+  nascraft.admin:
+    description: Grants Nascraft administrative commands and tools
+    default: op
+
   nascraft.market.admin:
     description: Allows access to /market admin and the in-game market editor
     default: op

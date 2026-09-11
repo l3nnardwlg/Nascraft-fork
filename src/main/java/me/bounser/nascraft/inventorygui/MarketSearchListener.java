@@ -3,7 +3,6 @@ package me.bounser.nascraft.inventorygui;
 import me.bounser.nascraft.Nascraft;
 import me.bounser.nascraft.config.Config;
 import me.bounser.nascraft.input.ChatInputManager;
-import me.bounser.nascraft.market.MarketManager;
 import me.bounser.nascraft.market.unit.Item;
 import me.bounser.nascraft.scheduler.FoliaScheduler;
 import org.bukkit.ChatColor;
@@ -20,9 +19,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 public class MarketSearchListener implements Listener {
     private static final int SEARCH_SLOT = 0;
@@ -43,8 +40,8 @@ public class MarketSearchListener implements Listener {
             meta.setDisplayName(SEARCH_NAME);
             meta.setLore(List.of(
                     ChatColor.GRAY + "Search all market items.",
-                    ChatColor.GRAY + "Results open in a paginated UI",
-                    ChatColor.GRAY + "with item categories and prices.",
+                    ChatColor.GRAY + "Type a name directly in chat",
+                    ChatColor.GRAY + "or use /search <item>.",
                     "",
                     ChatColor.GREEN + "§lCLICK TO SEARCH"
             ));
@@ -135,56 +132,17 @@ public class MarketSearchListener implements Listener {
     }
 
     private void openSearch(Player player) {
-        ChatInputManager.getInstance().request(player, "Enter the market item to search for.", raw -> {
-            String query = normalize(raw);
-            if (query.isBlank()) {
-                player.sendMessage(ChatColor.RED + "Enter an item name.");
-                reopenMarket(player);
-                return;
-            }
-
-            List<Item> matches = findMatches(query);
+        ChatInputManager.getInstance().request(player, "Enter the market item to search for (or use /search <item>).", raw -> {
+            List<Item> matches = MarketSearchService.findMatches(raw);
             if (matches.isEmpty()) {
                 player.sendMessage(ChatColor.RED + "No market items found for: " + raw);
                 reopenMarket(player);
                 return;
             }
 
-            MarketMenuManager.getInstance().setMenuOfPlayer(player, new SearchResultsMenu(player, raw.trim(), matches));
+            new SearchResultsMenu(player, raw.trim(), matches);
         }, () -> reopenMarket(player));
     }
 
     private void reopenMarket(Player player) { player.performCommand("market"); }
-
-    private List<Item> findMatches(String query) {
-        return MarketManager.getInstance().getAllItems().stream()
-                .filter(item -> matches(item, query))
-                .sorted(Comparator.comparingInt((Item item) -> matchRank(item, query))
-                        .thenComparing(item -> normalize(item.getCategory().getIdentifier()))
-                        .thenComparing(item -> item.getName().toLowerCase(Locale.ROOT)))
-                .toList();
-    }
-
-    private boolean matches(Item item, String query) {
-        return normalize(item.getIdentifier()).contains(query)
-                || normalize(item.getName()).contains(query)
-                || normalize(item.getItemStack().getType().name()).contains(query)
-                || normalize(item.getCategory().getIdentifier()).contains(query)
-                || normalize(item.getCategory().getFormattedDisplayName()).contains(query);
-    }
-
-    private int matchRank(Item item, String query) {
-        String identifier = normalize(item.getIdentifier());
-        String name = normalize(item.getName());
-        String material = normalize(item.getItemStack().getType().name());
-        String category = normalize(item.getCategory().getIdentifier());
-        if (identifier.equals(query) || name.equals(query) || material.equals(query)) return 0;
-        if (identifier.startsWith(query) || name.startsWith(query) || material.startsWith(query)) return 1;
-        if (category.equals(query) || category.startsWith(query)) return 2;
-        return 3;
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : ChatColor.stripColor(value).toLowerCase(Locale.ROOT).trim().replace(' ', '_');
-    }
 }

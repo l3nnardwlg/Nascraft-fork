@@ -19,7 +19,7 @@ public class NascraftWebEntrypoint extends Nascraft {
     // Bump whenever bundled frontend files change. Existing installations keep an
     // external copy under plugins/Nascraft/web, so an unchanged marker otherwise
     // leaves stale HTML/JS in place forever.
-    private static final String WEB_BUNDLE_VERSION = "1.9.9-market-web-polish-r3";
+    private static final String WEB_BUNDLE_VERSION = "1.9.9-market-web-polish-r4";
     private static final List<String> WEB_RESOURCES = List.of(
             "web/index.html",
             "web/style.css",

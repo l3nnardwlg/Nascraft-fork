@@ -3,6 +3,7 @@ package me.bounser.nascraft.inventorygui.MiniChart;
 import me.bounser.nascraft.Nascraft;
 import me.bounser.nascraft.chart.price.ChartType;
 import me.bounser.nascraft.chart.price.ItemChartReduced;
+import me.bounser.nascraft.config.Messages;
 import me.bounser.nascraft.config.lang.Lang;
 import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.database.DatabaseManager;
@@ -67,6 +68,7 @@ public class InfoMenu implements MenuPage {
         double max = sampled.stream().mapToDouble(Double::doubleValue).max().orElse(safeCurrentPrice());
         boolean positive = sampled.get(sampled.size() - 1) >= sampled.get(0);
         Material graphMaterial = positive ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
+        Messages messages = Messages.get();
 
         for (int column = 0; column < sampled.size(); column++) {
             double price = sampled.get(column);
@@ -79,11 +81,14 @@ public class InfoMenu implements MenuPage {
             }
 
             List<String> lore = List.of(
-                    "§7Older §8→ §7Newer",
-                    "§7Price: §f" + plainPrice(price)
+                    messages.legacy("chart.point-lore-1"),
+                    messages.legacy("chart.point-lore-2", "[PRICE]", plainPrice(price))
             );
             gui.setItem(row * GRAPH_COLUMNS + column,
-                    MarketMenuManager.getInstance().generateItemStack(graphMaterial, "§bPrice point " + (column + 1), lore));
+                    MarketMenuManager.getInstance().generateItemStack(
+                            graphMaterial,
+                            messages.legacy("chart.point-name", "[POINT]", String.valueOf(column + 1)),
+                            lore));
         }
     }
 
@@ -97,46 +102,48 @@ public class InfoMenu implements MenuPage {
         double first = prices.get(0);
         double last = prices.get(prices.size() - 1);
         double change = first > 0 ? ((last / first) - 1.0) * 100.0 : 0.0;
+        Messages messages = Messages.get();
 
         gui.setItem(45, MarketMenuManager.getInstance().generateItemStack(
                 Material.BARRIER,
-                "§cClose to return",
-                List.of("§7Press your inventory key to return", "§7to the market item menu.")));
+                messages.legacy("chart.back-name"),
+                List.of(messages.legacy("chart.back-lore-1"), messages.legacy("chart.back-lore-2"))));
 
         gui.setItem(47, MarketMenuManager.getInstance().generateItemStack(
                 Material.EMERALD,
-                "§a24h High",
+                messages.legacy("chart.high-name"),
                 List.of("§f" + plainPrice(high))));
 
+        Material itemMaterial = item.getItemStack() == null ? Material.PAPER : item.getItemStack().getType();
         gui.setItem(48, MarketMenuManager.getInstance().generateItemStack(
-                item.getItemStack().getType(),
+                itemMaterial,
                 legacyMiniMessage(item.getName()),
-                List.of("§7Current price", "§f" + plainPrice(current))));
+                List.of(messages.legacy("chart.current-lore"), "§f" + plainPrice(current))));
 
         gui.setItem(49, MarketMenuManager.getInstance().generateItemStack(
                 Material.CLOCK,
-                "§624 Hour Chart",
-                List.of("§7Minecraft-native chart view", "§7Left = older, right = newer")));
+                messages.legacy("chart.chart-name"),
+                List.of(messages.legacy("chart.chart-lore-1"), messages.legacy("chart.chart-lore-2"))));
 
         gui.setItem(50, MarketMenuManager.getInstance().generateItemStack(
                 Material.REDSTONE,
-                "§c24h Low",
+                messages.legacy("chart.low-name"),
                 List.of("§f" + plainPrice(low))));
 
         String changeColor = change >= 0 ? "§a" : "§c";
         gui.setItem(51, MarketMenuManager.getInstance().generateItemStack(
                 change >= 0 ? Material.LIME_DYE : Material.RED_DYE,
-                "§e24h Change",
+                messages.legacy("chart.change-name"),
                 List.of(changeColor + String.format("%+.2f%%", change))));
 
         gui.setItem(53, MarketMenuManager.getInstance().generateItemStack(
                 Material.PAPER,
-                "§bChart help",
+                messages.legacy("chart.help-name"),
                 List.of(
-                        "§7Each column represents a sampled",
-                        "§7price point from the last 24 hours.",
-                        "§7Green = finish above start.",
-                        "§7Red = finish below start."
+                        messages.legacy("chart.help-lore-1"),
+                        messages.legacy("chart.help-lore-2"),
+                        messages.legacy("chart.help-lore-3"),
+                        messages.legacy("chart.help-lore-4")
                 )));
     }
 

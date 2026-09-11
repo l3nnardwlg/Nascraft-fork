@@ -11,7 +11,7 @@ input:
 
 search:
   only-player: "<color:#f87171>✘ This command can only be used by a player.</color>"
-  usage: "<color:#fbbf24>Usage: /search <item or category></color>"
+  usage: "<color:#fbbf24>Usage: /search [item or category]</color>"
   prompt: "Enter an item or category to search for."
   empty: "<color:#f87171>✘ Enter an item name or category.</color>"
   no-results: "<color:#f87171>✘ No market items found for: <color:#fbbf24>[QUERY]</color></color>"
@@ -34,6 +34,9 @@ search:
     no-next: "<color:#6b7280>No next page</color>"
 
 chart:
+  point-name: "<color:#38bdf8>Price point [POINT]</color>"
+  point-lore-1: "<color:#9ca3af>Older → Newer</color>"
+  point-lore-2: "<color:#9ca3af>Price:</color> <color:#f3f4f6>[PRICE]</color>"
   back-name: "<color:#ff5e4f><b>Return</b></color>"
   back-lore-1: "<color:#9ca3af>Click to return to the</color>"
   back-lore-2: "<color:#9ca3af>market item menu.</color>"
@@ -53,7 +56,7 @@ chart:
 pay:
   only-player: "<color:#f87171>✘ Only players can use /pay.</color>"
   no-permission: "<color:#f87171>✘ You do not have permission to use /pay.</color>"
-  usage: "<color:#fbbf24>Usage: /pay <player> <amount></color>"
+  usage: "<color:#fbbf24>Usage: /pay [player] [amount]</color>"
   player-offline: "<color:#f87171>✘ That player is not online.</color>"
   self: "<color:#f87171>✘ You cannot pay yourself.</color>"
   invalid-number: "<color:#f87171>✘ The amount must be a valid number.</color>"
@@ -73,10 +76,10 @@ orders:
   success: "<color:#4ade80>Order updated successfully.</color>"
   usage-header: "<color:#fbbf24><b>Player Orders</b></color>"
   usage-open: "<color:#9ca3af>/orders</color> <color:#f3f4f6>- open the order board</color>"
-  usage-create: "<color:#9ca3af>/orders create <market-item> <amount> <price/item></color>"
-  usage-deliver: "<color:#9ca3af>/orders deliver <order-id> [amount]</color>"
-  usage-collect: "<color:#9ca3af>/orders collect <order-id></color>"
-  usage-cancel: "<color:#9ca3af>/orders cancel <order-id></color>"
+  usage-create: "<color:#9ca3af>/orders create [market-item] [amount] [price/item]</color>"
+  usage-deliver: "<color:#9ca3af>/orders deliver [order-id] [amount]</color>"
+  usage-collect: "<color:#9ca3af>/orders collect [order-id]</color>"
+  usage-cancel: "<color:#9ca3af>/orders cancel [order-id]</color>"
 
 webcode:
   rate-limited: "<color:#f87171>✘ Too many web login attempts. Please wait a minute and try again.</color>"
@@ -86,9 +89,10 @@ webcode:
   confirm-browser: "<color:#4ade80>Return to your browser and confirm that <b>[PLAYER]</b> is your account.</color>"
 
 admin:
+  no-permission: "<color:#f87171>✘ Permission required.</color>"
   syntax: "<color:#f87171>Wrong syntax. Available arguments: [ARGS]</color>"
   data-saved: "<color:#9ca3af>Data saved.</color>"
-  logs-syntax: "<color:#f87171>Wrong syntax. Available arguments for /nascraft logs: global, <item>, <player nick or uuid></color>"
+  logs-syntax: "<color:#f87171>Wrong syntax. Available arguments for /nascraft logs: global, [item], [player nick or uuid]</color>"
   player-only: "<color:#f87171>✘ That command can only be used in-game.</color>"
   argument-not-identified: "<color:#f87171>✘ Argument not identified.</color>"
   shop-stopped: "<color:#9ca3af>Shop stopped. Resume it with /nascraft resume.</color>"
@@ -98,7 +102,7 @@ admin:
   reload-start: "<color:#9ca3af>Reloading configuration and messages...</color>"
   reload-language: "<color:#9ca3af>Language reloaded. Using: <color:#fbbf24>[LANG]</color></color>"
   reload-done: "<color:#9ca3af>Reloaded <color:#f3f4f6>[ITEMS]</color> items (<color:#f3f4f6>[PARENTS]</color> parents and <color:#f3f4f6>[CHILDS]</color> childs) within <color:#f3f4f6>[CATEGORIES]</color> categories.</color>"
-  forgive-usage: "<color:#f87171>Wrong usage. /nascraft forgivedebt <player name> <all/amount></color>"
+  forgive-usage: "<color:#f87171>Wrong usage. /nascraft forgivedebt [player name] [all/amount]</color>"
   player-not-found: "<color:#f87171>✘ Player not found.</color>"
   invalid-amount: "<color:#f87171>✘ Invalid amount.</color>"
   forgive-success: "<color:#a78bfa>You have forgiven [AMOUNT] of debt for <b>[PLAYER]</b>. Remaining debt: [REMAINING]</color>"

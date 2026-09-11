@@ -1,7 +1,6 @@
 package me.bounser.nascraft.inventorygui;
 
 import me.bounser.nascraft.Nascraft;
-import me.bounser.nascraft.config.Config;
 import me.bounser.nascraft.config.lang.Lang;
 import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.market.unit.Item;
@@ -66,8 +65,11 @@ public class SearchResultsMenu implements MenuPage {
             if (resultIndex >= results.size()) break;
 
             Item item = results.get(resultIndex);
+            if (item == null || item.getItemStack() == null) continue;
+
             ItemStack icon = item.getItemStack().clone();
             ItemMeta meta = icon.getItemMeta();
+            if (meta == null) continue;
             meta.setDisplayName(item.getFormattedName());
 
             List<String> lore = MarketMenuManager.getInstance().getLoreFromItem(
@@ -75,7 +77,10 @@ public class SearchResultsMenu implements MenuPage {
                     Lang.get().message(Message.GUI_CATEGORY_ITEM_LORE)
             );
             lore.add("");
-            lore.add(ChatColor.GRAY + "Category: " + ChatColor.WHITE + item.getCategory().getFormattedDisplayName());
+            String categoryName = item.getCategory() == null
+                    ? ChatColor.DARK_GRAY + "Uncategorized"
+                    : item.getCategory().getFormattedDisplayName();
+            lore.add(ChatColor.GRAY + "Category: " + ChatColor.WHITE + categoryName);
             lore.add(ChatColor.GREEN + "Click to open market item");
             meta.setLore(lore);
             icon.setItemMeta(meta);
@@ -104,6 +109,7 @@ public class SearchResultsMenu implements MenuPage {
     private ItemStack navigationItem(Material material, String name) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
+        if (meta == null) return stack;
         meta.setDisplayName(ChatColor.GOLD + name);
         stack.setItemMeta(meta);
         return stack;

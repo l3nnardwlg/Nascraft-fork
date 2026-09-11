@@ -4,8 +4,8 @@ import me.bounser.nascraft.Nascraft;
 import me.bounser.nascraft.commands.Command;
 import me.bounser.nascraft.commands.admin.marketeditor.overview.MarketEditorManager;
 import me.bounser.nascraft.config.Config;
+import me.bounser.nascraft.config.Messages;
 import me.bounser.nascraft.config.lang.Lang;
-import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.database.BaseDatabase;
 import me.bounser.nascraft.database.Database;
 import me.bounser.nascraft.database.DatabaseManager;
@@ -13,7 +13,6 @@ import me.bounser.nascraft.database.DatabaseMigrator;
 import me.bounser.nascraft.database.mysql.MySQL;
 import me.bounser.nascraft.database.mysql.MysqlDialect;
 import me.bounser.nascraft.database.sqlite.SqliteDatabase;
-import me.bounser.nascraft.scheduler.FoliaScheduler;
 import me.bounser.nascraft.formatter.Formatter;
 import me.bounser.nascraft.formatter.Style;
 import me.bounser.nascraft.managers.DebtManager;
@@ -21,8 +20,8 @@ import me.bounser.nascraft.managers.currencies.CurrenciesManager;
 import me.bounser.nascraft.managers.currencies.Currency;
 import me.bounser.nascraft.market.MarketManager;
 import me.bounser.nascraft.market.unit.Item;
+import me.bounser.nascraft.scheduler.FoliaScheduler;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.metadata.FixedMetadataValue;
@@ -38,224 +37,191 @@ import java.util.logging.Level;
 public class NascraftCommand extends Command {
 
     private final List<String> arguments = Arrays.asList("reload", "edit", "stop", "resume", "info", "save", "logs", "forgivedebt", "migrate");
-
     private final List<String> tradesArguments = Arrays.asList("<player nick or uuid>", "<item>", "global");
 
     public NascraftCommand() {
-        super(
-                "nascraft",
-                new String[]{Config.getInstance().getCommandAlias("nascraft")},
-                "Admin command",
-                "nascraft.admin"
-                );
+        super("nascraft", new String[]{Config.getInstance().getCommandAlias("nascraft")}, "Admin command", "nascraft.admin");
     }
 
     @Override
     public void execute(CommandSender sender, String[] args) {
+        Messages messages = Messages.get();
 
         if (sender instanceof Player && !sender.hasPermission("nascraft.admin")) {
-            Lang.get().message((Player) sender, Message.NO_PERMISSION);
+            messages.command(sender, "admin.no-permission");
             return;
         }
-
-        String syntaxError = ChatColor.DARK_PURPLE + "[NC] " +ChatColor.RED + "Wrong syntax. Available arguments: \n";
-
-        for (String argument : arguments.subList(0, arguments.size()-2))
-            syntaxError += argument + " | ";
-
-        syntaxError += arguments.get(arguments.size() - 1);
 
         if (args.length == 0) {
-            sender.sendMessage(syntaxError);
+            sendSyntax(sender);
             return;
         }
 
-        switch(args[0].toLowerCase()){
-
-            case "save":
+        switch (args[0].toLowerCase()) {
+            case "save" -> {
                 DatabaseManager.get().getDatabase().saveEverything();
-                sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Data saved.");
-                break;
-
-            case "logs":
-
-                if (args.length != 2) {
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " +ChatColor.RED + "Wrong syntax. Available arguments for /nascraft logs: global, <item>, <player nick or uuid>");
-                    return;
-                }
-
-                if (!(sender instanceof Player)) {
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " +ChatColor.RED + "That command can only be used in-game.");
-                    return;
-                }
-
-                Player playerLog = (Player) sender;
-
-                if (args[1].equalsIgnoreCase("global")) {
-
-                    playerLog.setMetadata("NascraftLogInventory", new FixedMetadataValue(Nascraft.getInstance(),"global"));
-                    playerLog.setMetadata("NascraftLogInventoryPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
-                    NascraftLogListener.createTradePage(playerLog, null, null);
-
-                } else {
-
-                    Item item = MarketManager.getInstance().getItem(args[1].toLowerCase());
-
-                    if (item != null) {
-                        playerLog.setMetadata("NascraftLogInventory", new FixedMetadataValue(Nascraft.getInstance(), "item-" + item.getIdentifier()));
-                        playerLog.setMetadata("NascraftLogInventoryPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
-                        NascraftLogListener.createTradePage(playerLog, item, null);
-                    } else {
-                        Player player = Bukkit.getPlayer(args[1]);
-
-                        if (player == null) {
-
-                            if (isValidUUID(args[1])) {
-
-                                playerLog.setMetadata("NascraftLogInventory", new FixedMetadataValue(Nascraft.getInstance(), "uuid-" + args[1]));
-                                playerLog.setMetadata("NascraftLogInventoryPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
-                                NascraftLogListener.createTradePage(playerLog, null, UUID.fromString(args[1]));
-                                break;
-                            }
-
-                            sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " +ChatColor.RED + "Argument not identified.");
-                            return;
-                        } else {
-
-                            playerLog.setMetadata("NascraftLogInventory", new FixedMetadataValue(Nascraft.getInstance(), "uuid-" + player.getUniqueId()));
-                            playerLog.setMetadata("NascraftLogInventoryPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
-                            NascraftLogListener.createTradePage(playerLog, null, player.getUniqueId());
-
-                        }
-                    }
-                }
-                break;
-
-            case "info":
-
-                Currency currency = CurrenciesManager.getInstance().getDefaultCurrency();
-
-                String msg = "\n<color:#9985ff>● All time inflation: <color:#57ffa0>" + Formatter.roundToDecimals(MarketManager.getInstance().getConsumerPriceIndex()-100, 3) + "%</color>\n\n"
-                        + "● All outstanding debt: " + Formatter.format(currency, DatabaseManager.get().getDatabase().getAllOutstandingDebt(), Style.ROUND_BASIC) + " (" + DatabaseManager.get().getDatabase().getUUIDAndDebt().keySet().size()  + " debtors)\n"
-                        + "● All interests collected: " + Formatter.format(currency, DatabaseManager.get().getDatabase().getAllInterestsPaid(), Style.ROUND_BASIC) + "\n\n"
-                        + "● All taxes collected: " + Formatter.format(currency, Math.abs(DatabaseManager.get().getDatabase().getAllTaxesCollected()), Style.ROUND_BASIC) + "</color>\n";
-
-                Lang.get().message((Player) sender, msg);
-
-                break;
-
-            case "stop":
-                if(MarketManager.getInstance().getActive()) {
+                messages.command(sender, "admin.data-saved");
+            }
+            case "logs" -> handleLogs(sender, args);
+            case "info" -> handleInfo(sender);
+            case "stop" -> {
+                if (MarketManager.getInstance().getActive()) {
                     MarketManager.getInstance().stop();
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Shop stopped. Resume it with /nascraft resume.");
+                    messages.command(sender, "admin.shop-stopped");
                 } else {
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Shop is already stopped!");
+                    messages.command(sender, "admin.shop-already-stopped");
                 }
-                break;
-
-            case "resume":
-                if(!MarketManager.getInstance().getActive()) {
+            }
+            case "resume" -> {
+                if (!MarketManager.getInstance().getActive()) {
                     MarketManager.getInstance().resume();
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Shop resumed.");
+                    messages.command(sender, "admin.shop-resumed");
                 } else {
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Shop is already active!");
+                    messages.command(sender, "admin.shop-already-active");
                 }
-                break;
-
-            case "reload":
-                sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Reloading...");
-
-                Config.getInstance().reload();
-
-                Lang.get().reload();
-
-                sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Lang reloaded. Using: " + Config.getInstance().getSelectedLanguage());
-
-                sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.GRAY + "Reloaded! " +
-                        MarketManager.getInstance().getAllItems().size() + " items (" +
-                        MarketManager.getInstance().getAllParentItems().size() + " parents and " + (MarketManager.getInstance().getAllItems().size() - MarketManager.getInstance().getAllParentItems().size()) +
-                        " childs) within " + Config.getInstance().getCategories().size() + " categories.");
-
-                break;
-
-            case "edit":
-
-                if (sender instanceof Player) { MarketEditorManager.getInstance().startEditing((Player) sender); }
-                else Nascraft.getInstance().getLogger().info(ChatColor.RED  + "Command not available through console.");
-                break;
-
-            case "forgivedebt":
-
-                if (args.length != 3) {
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.RED  + "Wrong usage. /nascraft forgivedebt <player name> <all/amount>");
-                    break;
-                }
-
-                Player player = Bukkit.getPlayer(args[1]);
-
-                if (player == null) {
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.RED  + "Player not found");
-                    break;
-                }
-
-                if (args[2] == null || args[2].isEmpty()) {
-                    sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.RED  + "Invalid amount");
-                    break;
-                }
-
-                double debt = 0;
-                double playerDebt = DebtManager.getInstance().getDebtOfPlayer(player.getUniqueId());
-
-                try {
-                    debt = Double.parseDouble(args[2]);
-                } catch (NumberFormatException e) {
-                    if (args[2].equalsIgnoreCase("all")) {
-                        debt = playerDebt;
-                    } else {
-                        sender.sendMessage(ChatColor.DARK_PURPLE + "[NC] " + ChatColor.RED  + "Invalid amount");
-                    }
-                }
-
-                DebtManager.getInstance().decreaseDebt(player.getUniqueId(), debt);
-                String msgDebt = "\n<color:#9985ff>You have forgiven: " + Formatter.format(CurrenciesManager.getInstance().getDefaultCurrency(), debt, Style.ROUND_BASIC) + " of debt for the player <b>" + player.getName() +"</b>.\n"
-                        + "The player has now a debt of " + Formatter.format(CurrenciesManager.getInstance().getDefaultCurrency(), DebtManager.getInstance().getDebtOfPlayer(player.getUniqueId()), Style.ROUND_BASIC) + "\n";
-
-                Lang.get().message((Player) sender, msgDebt);
-
-                break;
-
-            case "migrate":
-                handleMigrate(sender, args);
-                break;
-
-            default:
-                sender.sendMessage(syntaxError);
+            }
+            case "reload" -> handleReload(sender);
+            case "edit" -> {
+                if (sender instanceof Player player) MarketEditorManager.getInstance().startEditing(player);
+                else messages.command(sender, "admin.player-only");
+            }
+            case "forgivedebt" -> handleForgiveDebt(sender, args);
+            case "migrate" -> handleMigrate(sender, args);
+            default -> sendSyntax(sender);
         }
     }
 
+    private void sendSyntax(CommandSender sender) {
+        Messages.get().command(sender, "admin.syntax", "[ARGS]", String.join(" | ", arguments));
+    }
+
+    private void handleLogs(CommandSender sender, String[] args) {
+        Messages messages = Messages.get();
+        if (args.length != 2) {
+            messages.command(sender, "admin.logs-syntax");
+            return;
+        }
+        if (!(sender instanceof Player playerLog)) {
+            messages.command(sender, "admin.player-only");
+            return;
+        }
+
+        if (args[1].equalsIgnoreCase("global")) {
+            playerLog.setMetadata("NascraftLogInventory", new FixedMetadataValue(Nascraft.getInstance(), "global"));
+            playerLog.setMetadata("NascraftLogInventoryPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
+            NascraftLogListener.createTradePage(playerLog, null, null);
+            return;
+        }
+
+        Item item = MarketManager.getInstance().getItem(args[1].toLowerCase());
+        if (item != null) {
+            playerLog.setMetadata("NascraftLogInventory", new FixedMetadataValue(Nascraft.getInstance(), "item-" + item.getIdentifier()));
+            playerLog.setMetadata("NascraftLogInventoryPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
+            NascraftLogListener.createTradePage(playerLog, item, null);
+            return;
+        }
+
+        Player player = Bukkit.getPlayer(args[1]);
+        UUID uuid;
+        if (player != null) {
+            uuid = player.getUniqueId();
+        } else if (isValidUUID(args[1])) {
+            uuid = UUID.fromString(args[1]);
+        } else {
+            messages.command(sender, "admin.argument-not-identified");
+            return;
+        }
+
+        playerLog.setMetadata("NascraftLogInventory", new FixedMetadataValue(Nascraft.getInstance(), "uuid-" + uuid));
+        playerLog.setMetadata("NascraftLogInventoryPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
+        NascraftLogListener.createTradePage(playerLog, null, uuid);
+    }
+
+    private void handleInfo(CommandSender sender) {
+        Currency currency = CurrenciesManager.getInstance().getDefaultCurrency();
+        Messages.get().command(sender, "admin.info",
+                "[INFLATION]", String.valueOf(Formatter.roundToDecimals(MarketManager.getInstance().getConsumerPriceIndex() - 100, 3)),
+                "[DEBT]", Formatter.format(currency, DatabaseManager.get().getDatabase().getAllOutstandingDebt(), Style.ROUND_BASIC),
+                "[DEBTORS]", String.valueOf(DatabaseManager.get().getDatabase().getUUIDAndDebt().keySet().size()),
+                "[INTERESTS]", Formatter.format(currency, DatabaseManager.get().getDatabase().getAllInterestsPaid(), Style.ROUND_BASIC),
+                "[TAXES]", Formatter.format(currency, Math.abs(DatabaseManager.get().getDatabase().getAllTaxesCollected()), Style.ROUND_BASIC));
+    }
+
+    private void handleReload(CommandSender sender) {
+        Messages messages = Messages.get();
+        messages.command(sender, "admin.reload-start");
+        Config.getInstance().reload();
+        Lang.get().reload();
+        messages.reload();
+        messages.command(sender, "admin.reload-language", "[LANG]", Config.getInstance().getSelectedLanguage());
+        int items = MarketManager.getInstance().getAllItems().size();
+        int parents = MarketManager.getInstance().getAllParentItems().size();
+        messages.command(sender, "admin.reload-done",
+                "[ITEMS]", String.valueOf(items),
+                "[PARENTS]", String.valueOf(parents),
+                "[CHILDS]", String.valueOf(items - parents),
+                "[CATEGORIES]", String.valueOf(Config.getInstance().getCategories().size()));
+    }
+
+    private void handleForgiveDebt(CommandSender sender, String[] args) {
+        Messages messages = Messages.get();
+        if (args.length != 3) {
+            messages.command(sender, "admin.forgive-usage");
+            return;
+        }
+
+        Player player = Bukkit.getPlayer(args[1]);
+        if (player == null) {
+            messages.command(sender, "admin.player-not-found");
+            return;
+        }
+
+        double playerDebt = DebtManager.getInstance().getDebtOfPlayer(player.getUniqueId());
+        final double debt;
+        if (args[2].equalsIgnoreCase("all")) {
+            debt = playerDebt;
+        } else {
+            try {
+                debt = Double.parseDouble(args[2]);
+            } catch (NumberFormatException exception) {
+                messages.command(sender, "admin.invalid-amount");
+                return;
+            }
+        }
+
+        if (!Double.isFinite(debt) || debt <= 0) {
+            messages.command(sender, "admin.invalid-amount");
+            return;
+        }
+
+        double amount = Math.min(debt, playerDebt);
+        DebtManager.getInstance().decreaseDebt(player.getUniqueId(), amount);
+        messages.command(sender, "admin.forgive-success",
+                "[AMOUNT]", Formatter.format(CurrenciesManager.getInstance().getDefaultCurrency(), amount, Style.ROUND_BASIC),
+                "[PLAYER]", player.getName(),
+                "[REMAINING]", Formatter.format(CurrenciesManager.getInstance().getDefaultCurrency(), DebtManager.getInstance().getDebtOfPlayer(player.getUniqueId()), Style.ROUND_BASIC));
+    }
+
     private void handleMigrate(CommandSender sender, String[] args) {
-
-        String prefix = ChatColor.DARK_PURPLE + "[NC] ";
-
+        Messages messages = Messages.get();
         if (args.length != 2 || !args[1].equalsIgnoreCase("mysql")) {
-            sender.sendMessage(prefix + ChatColor.RED + "Usage: /nascraft migrate mysql - copies the current SQLite database into the MySQL configured in config.yml.");
+            messages.command(sender, "admin.migrate-usage");
             return;
         }
 
         Database current = DatabaseManager.get().getDatabase();
         if (!(current instanceof SqliteDatabase)) {
-            sender.sendMessage(prefix + ChatColor.RED + "Migration source must be SQLite (current database.type is not SQLite).");
+            messages.command(sender, "admin.migrate-source");
             return;
         }
 
-        sender.sendMessage(prefix + ChatColor.GRAY + "Migrating SQLite -> MySQL in the background. Tip: run /nascraft stop first for a clean copy. Watch the console for progress.");
-
+        messages.command(sender, "admin.migrate-start");
         final BaseDatabase source = (BaseDatabase) current;
         FoliaScheduler.runAsync(Nascraft.getInstance(), () -> {
             Config c = Config.getInstance();
             MySQL target = new MySQL(c.getHost(), c.getPort(), c.getDatabase(), c.getUser(), c.getPassword());
             try {
-                target.connect(); // builds the MySQL schema
+                target.connect();
                 int rows;
                 try (Connection s = source.getConnection(); Connection d = target.getConnection()) {
                     d.setAutoCommit(false);
@@ -273,7 +239,7 @@ public class NascraftCommand extends Command {
 
     public static boolean isValidUUID(String uuidString) {
         try {
-            UUID uuid = UUID.fromString(uuidString);
+            UUID.fromString(uuidString);
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -287,25 +253,17 @@ public class NascraftCommand extends Command {
                 return StringUtil.copyPartialMatches(args[1], tradesArguments, new ArrayList<>());
 
             if (args[0].equalsIgnoreCase("forgivedebt")) {
-
                 if (args.length == 3) {
-
                     Player player = Bukkit.getPlayer(args[1]);
-
-                    if (player == null) return Arrays.asList("Invalid player");
-
-                    return Arrays.asList("all", String.valueOf(Formatter.roundToDecimals(DebtManager.getInstance().getDebtOfPlayer(player.getUniqueId()), CurrenciesManager.getInstance().getDefaultCurrency().getDecimalPrecission())));
-
-                } else {
-
-                    List<String> playerNames = new ArrayList<>();
-
-                    for (Player player : Bukkit.getOnlinePlayers()) {
-                        playerNames.add(player.getName());
-                    }
-
-                    return StringUtil.copyPartialMatches(args[1], playerNames, new ArrayList<>());
+                    if (player == null) return List.of("Invalid player");
+                    return Arrays.asList("all", String.valueOf(Formatter.roundToDecimals(
+                            DebtManager.getInstance().getDebtOfPlayer(player.getUniqueId()),
+                            CurrenciesManager.getInstance().getDefaultCurrency().getDecimalPrecission())));
                 }
+
+                List<String> playerNames = new ArrayList<>();
+                for (Player player : Bukkit.getOnlinePlayers()) playerNames.add(player.getName());
+                return StringUtil.copyPartialMatches(args[1], playerNames, new ArrayList<>());
             }
         }
 

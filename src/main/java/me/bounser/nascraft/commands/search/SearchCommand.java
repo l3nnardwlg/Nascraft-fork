@@ -1,7 +1,7 @@
 package me.bounser.nascraft.commands.search;
 
 import me.bounser.nascraft.commands.Command;
-import me.bounser.nascraft.inventorygui.MarketMenuManager;
+import me.bounser.nascraft.input.ChatInputManager;
 import me.bounser.nascraft.inventorygui.MarketSearchService;
 import me.bounser.nascraft.inventorygui.SearchResultsMenu;
 import me.bounser.nascraft.market.unit.Item;
@@ -25,6 +25,11 @@ public class SearchCommand extends Command {
             sender.sendMessage("This command can only be used by a player.");
             return;
         }
+
+        // A player may invoke /search while the compass chat prompt is still open.
+        // Drop that stale one-shot session so a later "cancel" or chat message cannot
+        // unexpectedly close/replace the newly opened results inventory.
+        ChatInputManager.getInstance().clear(player);
 
         if (args.length == 0) {
             player.sendMessage(ChatColor.YELLOW + "Usage: /search <item or category>");

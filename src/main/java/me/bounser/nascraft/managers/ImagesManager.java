@@ -7,6 +7,8 @@ import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -27,20 +29,29 @@ public class ImagesManager {
         if (override != null) return override;
 
         Material material = resolveMaterial(identifier);
-        if (material == null) {
-            Nascraft.getInstance().getLogger().info("Unable to resolve material for image: " + identifier);
-            return null;
+        if (material != null) {
+            BufferedImage image = ItemTextureProvider.getImage(material);
+            if (image == null) {
+                Material fallback = getTextureFallback(material);
+                if (fallback != null) image = ItemTextureProvider.getImage(fallback);
+            }
+            if (image != null) return image;
+
+            Nascraft.getInstance().getLogger().warning(
+                    "Unable to render texture for material " + material.name().toLowerCase()
+                            + " (market item " + identifier + "). Using a fallback icon instead."
+            );
+        } else {
+            Nascraft.getInstance().getLogger().warning(
+                    "Unable to resolve a material for market item " + identifier
+                            + ". Using a fallback icon instead."
+            );
         }
 
-        BufferedImage image = ItemTextureProvider.getImage(material);
-        if (image == null) {
-            Material fallback = getTextureFallback(material);
-            if (fallback != null) image = ItemTextureProvider.getImage(fallback);
-        }
-        if (image == null) {
-            Nascraft.getInstance().getLogger().info("Unable to render texture for material: " + material.name().toLowerCase());
-        }
-        return image;
+        // Item images are presentation data. A missing/unsupported Minecraft model
+        // must never prevent an otherwise valid market item from being created.
+        BufferedImage fallback = getSafeFallbackTexture();
+        return fallback != null ? fallback : createPlaceholderImage();
     }
 
     private Material getTextureFallback(Material material) {
@@ -52,6 +63,32 @@ public class ImagesManager {
         }
 
         return null;
+    }
+
+    private BufferedImage getSafeFallbackTexture() {
+        // Use ordinary item textures which are available on practically every
+        // supported Minecraft version before falling back to a generated image.
+        for (Material material : new Material[]{Material.PAPER, Material.STONE, Material.BARRIER}) {
+            BufferedImage image = ItemTextureProvider.getImage(material);
+            if (image != null) return image;
+        }
+        return null;
+    }
+
+    private BufferedImage createPlaceholderImage() {
+        BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(new Color(55, 65, 81, 255));
+            graphics.fillRect(0, 0, 16, 16);
+            graphics.setColor(new Color(156, 163, 175, 255));
+            graphics.fillRect(3, 3, 10, 10);
+            graphics.setColor(new Color(31, 41, 55, 255));
+            graphics.fillRect(5, 5, 6, 6);
+        } finally {
+            graphics.dispose();
+        }
+        return image;
     }
 
     private BufferedImage loadOverride(String identifier) {
@@ -84,6 +121,10 @@ public class ImagesManager {
     }
 
     public static byte[] getBytesOfImage(BufferedImage image) {
+        // Keep callers safe even if a third-party/custom source unexpectedly
+        // supplied null. Images are optional presentation data, not market state.
+        if (image == null) image = getInstance().createPlaceholderImage();
+
         ByteArrayOutputStream baosBalance = new ByteArrayOutputStream();
         try {
             ImageIO.write(image, "png", baosBalance);

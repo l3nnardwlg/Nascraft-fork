@@ -160,31 +160,42 @@ public class MarketSearchListener implements Listener {
         return MarketManager.getInstance().getAllItems().stream()
                 .filter(item -> matches(item, query))
                 .sorted(Comparator.comparingInt((Item item) -> matchRank(item, query))
-                        .thenComparing(item -> normalize(item.getCategory().getIdentifier()))
-                        .thenComparing(item -> item.getName().toLowerCase(Locale.ROOT)))
+                        .thenComparing(this::categoryIdentifier)
+                        .thenComparing(item -> normalize(item.getName())))
                 .toList();
     }
 
     private boolean matches(Item item, String query) {
-        return normalize(item.getIdentifier()).contains(query)
+        if (item == null) return false;
+
+        boolean basicMatch = normalize(item.getIdentifier()).contains(query)
                 || normalize(item.getName()).contains(query)
-                || normalize(item.getItemStack().getType().name()).contains(query)
-                || normalize(item.getCategory().getIdentifier()).contains(query)
+                || (item.getItemStack() != null && normalize(item.getItemStack().getType().name()).contains(query));
+
+        if (basicMatch) return true;
+        if (item.getCategory() == null) return false;
+
+        return normalize(item.getCategory().getIdentifier()).contains(query)
                 || normalize(item.getCategory().getFormattedDisplayName()).contains(query);
     }
 
     private int matchRank(Item item, String query) {
         String identifier = normalize(item.getIdentifier());
         String name = normalize(item.getName());
-        String material = normalize(item.getItemStack().getType().name());
-        String category = normalize(item.getCategory().getIdentifier());
+        String material = item.getItemStack() == null ? "" : normalize(item.getItemStack().getType().name());
+        String category = categoryIdentifier(item);
         if (identifier.equals(query) || name.equals(query) || material.equals(query)) return 0;
         if (identifier.startsWith(query) || name.startsWith(query) || material.startsWith(query)) return 1;
         if (category.equals(query) || category.startsWith(query)) return 2;
         return 3;
     }
 
+    private String categoryIdentifier(Item item) {
+        return item == null || item.getCategory() == null ? "" : normalize(item.getCategory().getIdentifier());
+    }
+
     private String normalize(String value) {
-        return value == null ? "" : ChatColor.stripColor(value).toLowerCase(Locale.ROOT).trim().replace(' ', '_');
+        String stripped = value == null ? "" : ChatColor.stripColor(value);
+        return (stripped == null ? "" : stripped).toLowerCase(Locale.ROOT).trim().replace(' ', '_');
     }
 }

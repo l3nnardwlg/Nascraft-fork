@@ -35,39 +35,50 @@ public class SearchCommand extends Command {
             return;
         }
 
-        String query = normalize(String.join(" ", args));
+        String rawQuery = String.join(" ", args).trim();
+        String query = normalize(rawQuery);
         List<Item> matches = MarketManager.getInstance().getAllItems().stream()
                 .filter(item -> matches(item, query))
                 .sorted(Comparator.comparingInt((Item item) -> rank(item, query))
-                        .thenComparing(item -> normalize(item.getCategory().getIdentifier()))
+                        .thenComparing(this::categoryIdentifier)
                         .thenComparing(item -> normalize(item.getName())))
                 .toList();
 
         if (matches.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "No market items found for: " + String.join(" ", args));
+            player.sendMessage(ChatColor.RED + "No market items found for: " + rawQuery);
             return;
         }
 
-        new SearchResultsMenu(player, String.join(" ", args).trim(), matches);
+        new SearchResultsMenu(player, rawQuery, matches);
     }
 
     private boolean matches(Item item, String query) {
-        return normalize(item.getIdentifier()).contains(query)
+        if (item == null) return false;
+
+        boolean basicMatch = normalize(item.getIdentifier()).contains(query)
                 || normalize(item.getName()).contains(query)
-                || normalize(item.getItemStack().getType().name()).contains(query)
-                || normalize(item.getCategory().getIdentifier()).contains(query)
+                || (item.getItemStack() != null && normalize(item.getItemStack().getType().name()).contains(query));
+
+        if (basicMatch) return true;
+        if (item.getCategory() == null) return false;
+
+        return normalize(item.getCategory().getIdentifier()).contains(query)
                 || normalize(item.getCategory().getFormattedDisplayName()).contains(query);
     }
 
     private int rank(Item item, String query) {
         String identifier = normalize(item.getIdentifier());
         String name = normalize(item.getName());
-        String material = normalize(item.getItemStack().getType().name());
-        String category = normalize(item.getCategory().getIdentifier());
+        String material = item.getItemStack() == null ? "" : normalize(item.getItemStack().getType().name());
+        String category = categoryIdentifier(item);
         if (identifier.equals(query) || name.equals(query) || material.equals(query)) return 0;
         if (identifier.startsWith(query) || name.startsWith(query) || material.startsWith(query)) return 1;
         if (category.equals(query) || category.startsWith(query)) return 2;
         return 3;
+    }
+
+    private String categoryIdentifier(Item item) {
+        return item == null || item.getCategory() == null ? "" : normalize(item.getCategory().getIdentifier());
     }
 
     private String normalize(String value) {

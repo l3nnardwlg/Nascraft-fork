@@ -1,6 +1,7 @@
 package me.bounser.nascraft;
 
 import me.bounser.nascraft.commands.orders.OrdersCommand;
+import me.bounser.nascraft.commands.pay.PayCommand;
 import me.bounser.nascraft.market.playerorders.PlayerOrdersManager;
 import me.bounser.nascraft.scheduler.FoliaScheduler;
 import me.bounser.nascraft.web.WebConfig;
@@ -22,15 +23,45 @@ public class NascraftWebEntrypoint extends Nascraft {
     public void onEnable() {
         super.onEnable();
 
-        PlayerOrdersManager playerOrders = PlayerOrdersManager.getInstance();
-        getServer().getPluginManager().registerEvents(playerOrders, this);
-        new OrdersCommand();
+        ensureCustomFeatureDefaults();
+
+        if (getConfig().getBoolean("custom-features.orders", true)) {
+            PlayerOrdersManager playerOrders = PlayerOrdersManager.getInstance();
+            getServer().getPluginManager().registerEvents(playerOrders, this);
+            new OrdersCommand();
+        } else {
+            getLogger().info("AGF player orders are disabled by custom-features.orders.");
+        }
+
+        // /pay used to be created from MarketCommand. Keep compatibility with
+        // that path while also allowing pay to work when /market itself is disabled.
+        if (getConfig().getBoolean("custom-features.pay", true)
+                && !getConfig().getBoolean("commands.market.enabled", true)) {
+            new PayCommand();
+        }
+
+        if (!getConfig().getBoolean("custom-features.pay", true)) {
+            getLogger().info("AGF pay system is disabled by custom-features.pay.");
+        }
+        if (!getConfig().getBoolean("custom-features.auction-house", true)) {
+            getLogger().info("AGF auction house is disabled by custom-features.auction-house.");
+        }
 
         WebConfig webConfig = new WebConfig(this);
         if (!webConfig.enabled()) return;
         restoreBundledWebFrontend();
         webServerManager = new WebServerManager(this, webConfig);
         FoliaScheduler.runAsync(this, webServerManager::startServer);
+    }
+
+    private void ensureCustomFeatureDefaults() {
+        // These defaults are copied into config.yml on startup so existing
+        // installations gain the new switches without replacing their config.
+        getConfig().addDefault("custom-features.pay", true);
+        getConfig().addDefault("custom-features.orders", true);
+        getConfig().addDefault("custom-features.auction-house", true);
+        getConfig().options().copyDefaults(true);
+        saveConfig();
     }
 
     @Override public void onDisable() { if (webServerManager != null && webServerManager.isRunning()) { getLogger().info("Stopping web server..."); webServerManager.stopServer(); } super.onDisable(); }

@@ -1,5 +1,6 @@
 package me.bounser.nascraft.commands;
 
+import me.bounser.nascraft.Nascraft;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.CommandSender;
@@ -9,6 +10,7 @@ import org.jetbrains.annotations.NotNull;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 public abstract class Command extends BukkitCommand {
 
@@ -20,6 +22,11 @@ public abstract class Command extends BukkitCommand {
         this.setDescription(description);
         this.setPermission(permission);
 
+        if (!isCustomFeatureEnabled(command)) {
+            Nascraft.getInstance().getLogger().info("Custom feature command /" + command + " is disabled in config.yml.");
+            return;
+        }
+
         try {
             Field field = Bukkit.getServer().getClass().getDeclaredField("commandMap");
             field.setAccessible(true);
@@ -30,6 +37,18 @@ public abstract class Command extends BukkitCommand {
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private boolean isCustomFeatureEnabled(String command) {
+        if (Nascraft.getInstance() == null || Nascraft.getInstance().getConfig() == null) return true;
+
+        return switch (command.toLowerCase(Locale.ROOT)) {
+            case "pay" -> Nascraft.getInstance().getConfig().getBoolean("custom-features.pay", true);
+            case "orders", "order" -> Nascraft.getInstance().getConfig().getBoolean("custom-features.orders", true);
+            case "auction", "auctionhouse", "auction-house", "ah" ->
+                    Nascraft.getInstance().getConfig().getBoolean("custom-features.auction-house", true);
+            default -> true;
+        };
     }
 
     @Override

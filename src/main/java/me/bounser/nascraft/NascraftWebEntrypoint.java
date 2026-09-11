@@ -2,6 +2,7 @@ package me.bounser.nascraft;
 
 import me.bounser.nascraft.commands.orders.OrdersCommand;
 import me.bounser.nascraft.commands.pay.PayCommand;
+import me.bounser.nascraft.inventorygui.InfoMenuReturnListener;
 import me.bounser.nascraft.market.playerorders.PlayerOrdersManager;
 import me.bounser.nascraft.scheduler.FoliaScheduler;
 import me.bounser.nascraft.web.WebConfig;
@@ -24,6 +25,7 @@ public class NascraftWebEntrypoint extends Nascraft {
         super.onEnable();
 
         ensureCustomFeatureDefaults();
+        getServer().getPluginManager().registerEvents(new InfoMenuReturnListener(), this);
 
         if (getConfig().getBoolean("custom-features.orders", true)) {
             PlayerOrdersManager playerOrders = PlayerOrdersManager.getInstance();

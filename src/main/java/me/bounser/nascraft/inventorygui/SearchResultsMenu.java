@@ -1,6 +1,7 @@
 package me.bounser.nascraft.inventorygui;
 
 import me.bounser.nascraft.Nascraft;
+import me.bounser.nascraft.config.Messages;
 import me.bounser.nascraft.config.lang.Lang;
 import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.market.unit.Item;
@@ -43,7 +44,8 @@ public class SearchResultsMenu implements MenuPage {
 
     @Override
     public void open() {
-        gui = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Market Search: " + ChatColor.GOLD + query);
+        gui = Bukkit.createInventory(null, 54,
+                Messages.get().legacy("search.results.title", "[QUERY]", query));
         player.setMetadata("NascraftPage", new FixedMetadataValue(Nascraft.getInstance(), 0));
         update();
     }
@@ -78,22 +80,25 @@ public class SearchResultsMenu implements MenuPage {
             );
             lore.add("");
             String categoryName = item.getCategory() == null
-                    ? ChatColor.DARK_GRAY + "Uncategorized"
+                    ? Messages.get().legacy("search.results.uncategorized")
                     : item.getCategory().getFormattedDisplayName();
-            lore.add(ChatColor.GRAY + "Category: " + ChatColor.WHITE + categoryName);
-            lore.add(ChatColor.GREEN + "Click to open market item");
+            lore.add(Messages.get().legacy("search.results.category",
+                    "[CATEGORY]", ChatColor.stripColor(categoryName) == null ? categoryName : ChatColor.stripColor(categoryName)));
+            lore.add(Messages.get().legacy("search.results.open"));
             meta.setLore(lore);
             icon.setItemMeta(meta);
             gui.setItem(RESULT_SLOTS[i], icon);
         }
 
         gui.setItem(PREVIOUS_SLOT, navigationItem(page > 0 ? Material.ARROW : Material.BARRIER,
-                page > 0 ? "Previous page" : "No previous page"));
-        gui.setItem(BACK_SLOT, navigationItem(Material.BARRIER, "Back to market"));
-        gui.setItem(QUERY_SLOT, navigationItem(Material.COMPASS,
-                "Search: " + query + " (" + results.size() + " result" + (results.size() == 1 ? "" : "s") + ")"));
+                page > 0 ? "search.results.previous" : "search.results.no-previous"));
+        gui.setItem(BACK_SLOT, navigationItem(Material.BARRIER, "search.results.back"));
+        gui.setItem(QUERY_SLOT, navigationItem(Material.COMPASS, "search.results.query",
+                "[QUERY]", query,
+                "[COUNT]", String.valueOf(results.size()),
+                "[PLURAL]", results.size() == 1 ? "" : "s"));
         gui.setItem(NEXT_SLOT, navigationItem((page + 1) * pageSize < results.size() ? Material.ARROW : Material.BARRIER,
-                (page + 1) * pageSize < results.size() ? "Next page" : "No next page"));
+                (page + 1) * pageSize < results.size() ? "search.results.next" : "search.results.no-next"));
 
         if (player.getOpenInventory().getTopInventory() != gui) player.openInventory(gui);
         player.setMetadata("NascraftMenu", new FixedMetadataValue(Nascraft.getInstance(), "search-results"));
@@ -106,11 +111,11 @@ public class SearchResultsMenu implements MenuPage {
         return results;
     }
 
-    private ItemStack navigationItem(Material material, String name) {
+    private ItemStack navigationItem(Material material, String path, String... replacements) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
         if (meta == null) return stack;
-        meta.setDisplayName(ChatColor.GOLD + name);
+        meta.setDisplayName(Messages.get().legacy(path, replacements));
         stack.setItemMeta(meta);
         return stack;
     }

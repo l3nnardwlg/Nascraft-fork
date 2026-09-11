@@ -1,0 +1,116 @@
+# Fork-specific configurable messages.
+# MiniMessage formatting is supported: https://docs.advntr.dev/minimessage/format.html
+# Missing keys are merged automatically on plugin start/reload without overwriting custom values.
+
+prefix: "<gradient:#b06bff:#ff5dcc><b>[Nascraft]</b></gradient> <color:#9ca3af>»</color> "
+
+input:
+  prompt: "<color:#fbbf24>[PROMPT]</color>"
+  cancel-hint: "<color:#9ca3af>Type <color:#fbbf24>cancel</color> or </color><click:run_command:'/nascraftcancel'><hover:show_text:'<color:#9ca3af>Cancel and return</color>'><color:#ff5e4f><b>[ CLICK TO CANCEL ]</b></color></hover></click>"
+  cancelled: "<color:#9ca3af>Input cancelled.</color>"
+
+search:
+  only-player: "<color:#f87171>✘ This command can only be used by a player.</color>"
+  usage: "<color:#fbbf24>Usage: /search [item or category]</color>"
+  prompt: "Enter an item or category to search for."
+  empty: "<color:#f87171>✘ Enter an item name or category.</color>"
+  no-results: "<color:#f87171>✘ No market items found for: <color:#fbbf24>[QUERY]</color></color>"
+  compass:
+    name: "<color:#fbbf24><b>Search Items</b></color>"
+    lore-1: "<color:#9ca3af>Search names, IDs, materials</color>"
+    lore-2: "<color:#9ca3af>and complete categories.</color>"
+    lore-3: "<color:#9ca3af>Results open in a paginated list.</color>"
+    action: "<color:#4ade80><b>CLICK TO SEARCH</b></color>"
+  results:
+    title: "<color:#4b5563>Market Search:</color> <color:#fbbf24>[QUERY]</color>"
+    uncategorized: "<color:#6b7280>Uncategorized</color>"
+    category: "<color:#9ca3af>Category:</color> <color:#f3f4f6>[CATEGORY]</color>"
+    open: "<color:#4ade80>Click to open market item</color>"
+    previous: "<color:#fbbf24>Previous page</color>"
+    no-previous: "<color:#6b7280>No previous page</color>"
+    back: "<color:#ff5e4f>Back to market</color>"
+    query: "<color:#fbbf24>Search: [QUERY] ([COUNT] result[PLURAL])</color>"
+    next: "<color:#fbbf24>Next page</color>"
+    no-next: "<color:#6b7280>No next page</color>"
+
+chart:
+  point-name: "<color:#38bdf8>Price point [POINT]</color>"
+  point-lore-1: "<color:#9ca3af>Older → Newer</color>"
+  point-lore-2: "<color:#9ca3af>Price:</color> <color:#f3f4f6>[PRICE]</color>"
+  back-name: "<color:#ff5e4f><b>Return</b></color>"
+  back-lore-1: "<color:#9ca3af>Click to return to the</color>"
+  back-lore-2: "<color:#9ca3af>market item menu.</color>"
+  high-name: "<color:#4ade80>24h High</color>"
+  current-lore: "<color:#9ca3af>Current price</color>"
+  chart-name: "<color:#fbbf24>24 Hour Chart</color>"
+  chart-lore-1: "<color:#9ca3af>Minecraft-native chart view</color>"
+  chart-lore-2: "<color:#9ca3af>Left = older, right = newer</color>"
+  low-name: "<color:#f87171>24h Low</color>"
+  change-name: "<color:#fbbf24>24h Change</color>"
+  help-name: "<color:#38bdf8>Chart help</color>"
+  help-lore-1: "<color:#9ca3af>Each column represents a sampled</color>"
+  help-lore-2: "<color:#9ca3af>price point from the last 24 hours.</color>"
+  help-lore-3: "<color:#9ca3af>Green = finish above start.</color>"
+  help-lore-4: "<color:#9ca3af>Red = finish below start.</color>"
+
+pay:
+  only-player: "<color:#f87171>✘ Only players can use /pay.</color>"
+  no-permission: "<color:#f87171>✘ You do not have permission to use /pay.</color>"
+  usage: "<color:#fbbf24>Usage: /pay [player] [amount]</color>"
+  player-offline: "<color:#f87171>✘ That player is not online.</color>"
+  self: "<color:#f87171>✘ You cannot pay yourself.</color>"
+  invalid-number: "<color:#f87171>✘ The amount must be a valid number.</color>"
+  positive-number: "<color:#f87171>✘ The amount must be greater than zero.</color>"
+  sent: "<color:#4ade80>You paid <b>[PLAYER]</b> $[AMOUNT].</color>"
+  received: "<color:#4ade80>You received $[AMOUNT] from <b>[PLAYER]</b>.</color>"
+  insufficient: "<color:#f87171>✘ You do not have enough money.</color>"
+  economy-unavailable: "<color:#f87171>✘ The economy provider is currently unavailable.</color>"
+  withdraw-failed: "<color:#f87171>✘ The payment could not be withdrawn from your account.</color>"
+  deposit-failed: "<color:#f87171>✘ The payment failed and your money was refunded.</color>"
+
+orders:
+  only-player: "<color:#f87171>✘ Only players can use player orders.</color>"
+  unknown-id: "<color:#f87171>✘ Unknown or ambiguous order id.</color>"
+  invalid-numbers: "<color:#f87171>✘ Amount and price must be valid numbers.</color>"
+  error: "<color:#f87171>✘ [ERROR]</color>"
+  success: "<color:#4ade80>Order updated successfully.</color>"
+  usage-header: "<color:#fbbf24><b>Player Orders</b></color>"
+  usage-open: "<color:#9ca3af>/orders</color> <color:#f3f4f6>- open the order board</color>"
+  usage-create: "<color:#9ca3af>/orders create [market-item] [amount] [price/item]</color>"
+  usage-deliver: "<color:#9ca3af>/orders deliver [order-id] [amount]</color>"
+  usage-collect: "<color:#9ca3af>/orders collect [order-id]</color>"
+  usage-cancel: "<color:#9ca3af>/orders cancel [order-id]</color>"
+
+webcode:
+  rate-limited: "<color:#f87171>✘ Too many web login attempts. Please wait a minute and try again.</color>"
+  invalid-format: "<color:#f87171>✘ Invalid code format. The code must be exactly 6 digits.</color>"
+  invalid-or-expired: "<color:#f87171>✘ This login code is invalid or has expired.</color>"
+  linked: "<color:#4ade80>Web login request linked.</color>"
+  confirm-browser: "<color:#4ade80>Return to your browser and confirm that <b>[PLAYER]</b> is your account.</color>"
+
+admin:
+  no-permission: "<color:#f87171>✘ Permission required.</color>"
+  syntax: "<color:#f87171>Wrong syntax. Available arguments: [ARGS]</color>"
+  data-saved: "<color:#9ca3af>Data saved.</color>"
+  logs-syntax: "<color:#f87171>Wrong syntax. Available arguments for /nascraft logs: global, [item], [player nick or uuid]</color>"
+  player-only: "<color:#f87171>✘ That command can only be used in-game.</color>"
+  argument-not-identified: "<color:#f87171>✘ Argument not identified.</color>"
+  shop-stopped: "<color:#9ca3af>Shop stopped. Resume it with /nascraft resume.</color>"
+  shop-already-stopped: "<color:#9ca3af>Shop is already stopped.</color>"
+  shop-resumed: "<color:#9ca3af>Shop resumed.</color>"
+  shop-already-active: "<color:#9ca3af>Shop is already active.</color>"
+  reload-start: "<color:#9ca3af>Reloading configuration and messages...</color>"
+  reload-language: "<color:#9ca3af>Language reloaded. Using: <color:#fbbf24>[LANG]</color></color>"
+  reload-done: "<color:#9ca3af>Reloaded <color:#f3f4f6>[ITEMS]</color> items (<color:#f3f4f6>[PARENTS]</color> parents and <color:#f3f4f6>[CHILDS]</color> childs) within <color:#f3f4f6>[CATEGORIES]</color> categories.</color>"
+  forgive-usage: "<color:#f87171>Wrong usage. /nascraft forgivedebt [player name] [all/amount]</color>"
+  player-not-found: "<color:#f87171>✘ Player not found.</color>"
+  invalid-amount: "<color:#f87171>✘ Invalid amount.</color>"
+  forgive-success: "<color:#a78bfa>You have forgiven [AMOUNT] of debt for <b>[PLAYER]</b>. Remaining debt: [REMAINING]</color>"
+  migrate-usage: "<color:#f87171>Usage: /nascraft migrate mysql - copies the current SQLite database into the MySQL configured in config.yml.</color>"
+  migrate-source: "<color:#f87171>Migration source must be SQLite (current database.type is not SQLite).</color>"
+  migrate-start: "<color:#9ca3af>Migrating SQLite -> MySQL in the background. Tip: run /nascraft stop first for a clean copy. Watch the console for progress.</color>"
+  info: |
+    <color:#a78bfa>● All time inflation: <color:#4ade80>[INFLATION]%</color>
+    ● All outstanding debt: [DEBT] ([DEBTORS] debtors)
+    ● All interests collected: [INTERESTS]
+    ● All taxes collected: [TAXES]</color>

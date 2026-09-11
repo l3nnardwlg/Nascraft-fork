@@ -1,6 +1,7 @@
 package me.bounser.nascraft.commands.search;
 
 import me.bounser.nascraft.commands.Command;
+import me.bounser.nascraft.config.Messages;
 import me.bounser.nascraft.input.ChatInputManager;
 import me.bounser.nascraft.inventorygui.SearchResultsMenu;
 import me.bounser.nascraft.market.MarketManager;
@@ -24,14 +25,14 @@ public class SearchCommand extends Command {
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("This command can only be used by a player.");
+            Messages.get().command(sender, "search.only-player");
             return;
         }
 
         ChatInputManager.getInstance().clear(player);
 
         if (args.length == 0) {
-            player.sendMessage(ChatColor.YELLOW + "Usage: /search <item or category>");
+            Messages.get().command(player, "search.usage");
             return;
         }
 
@@ -45,7 +46,7 @@ public class SearchCommand extends Command {
                 .toList();
 
         if (matches.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "No market items found for: " + rawQuery);
+            Messages.get().command(player, "search.no-results", "[QUERY]", rawQuery);
             return;
         }
 

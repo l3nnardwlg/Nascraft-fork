@@ -1,9 +1,9 @@
 package me.bounser.nascraft.commands.orders;
 
 import me.bounser.nascraft.commands.Command;
+import me.bounser.nascraft.config.Messages;
 import me.bounser.nascraft.market.MarketManager;
 import me.bounser.nascraft.market.playerorders.PlayerOrdersManager;
-import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -20,7 +20,7 @@ public class OrdersCommand extends Command {
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Only players can use player orders.");
+            Messages.get().command(sender, "orders.only-player");
             return;
         }
 
@@ -50,7 +50,7 @@ public class OrdersCommand extends Command {
                     }
                     UUID id = resolveOrderId(manager, args[1]);
                     if (id == null) {
-                        player.sendMessage(ChatColor.RED + "Unknown or ambiguous order id.");
+                        Messages.get().command(player, "orders.unknown-id");
                         return;
                     }
                     int amount = args.length == 3 ? Integer.parseInt(args[2]) : 0;
@@ -63,7 +63,7 @@ public class OrdersCommand extends Command {
                     }
                     UUID id = resolveOrderId(manager, args[1]);
                     if (id == null) {
-                        player.sendMessage(ChatColor.RED + "Unknown or ambiguous order id.");
+                        Messages.get().command(player, "orders.unknown-id");
                         return;
                     }
                     error = manager.collect(player, id);
@@ -75,7 +75,7 @@ public class OrdersCommand extends Command {
                     }
                     UUID id = resolveOrderId(manager, args[1]);
                     if (id == null) {
-                        player.sendMessage(ChatColor.RED + "Unknown or ambiguous order id.");
+                        Messages.get().command(player, "orders.unknown-id");
                         return;
                     }
                     error = manager.cancel(player, id);
@@ -86,13 +86,13 @@ public class OrdersCommand extends Command {
                 }
             }
         } catch (NumberFormatException exception) {
-            player.sendMessage(ChatColor.RED + "Amount and price must be valid numbers.");
+            Messages.get().command(player, "orders.invalid-numbers");
             return;
         }
 
-        if (error != null) player.sendMessage(ChatColor.RED + error);
+        if (error != null) Messages.get().command(player, "orders.error", "[ERROR]", error);
         else {
-            player.sendMessage(ChatColor.LIGHT_PURPLE + "Order updated successfully.");
+            Messages.get().command(player, "orders.success");
             manager.open(player);
         }
     }
@@ -114,12 +114,13 @@ public class OrdersCommand extends Command {
     }
 
     private void usage(Player player) {
-        player.sendMessage(ChatColor.GOLD + "Player Orders");
-        player.sendMessage(ChatColor.GRAY + "/orders" + ChatColor.WHITE + " - open the order board");
-        player.sendMessage(ChatColor.GRAY + "/orders create <market-item> <amount> <price/item>");
-        player.sendMessage(ChatColor.GRAY + "/orders deliver <order-id> [amount]");
-        player.sendMessage(ChatColor.GRAY + "/orders collect <order-id>");
-        player.sendMessage(ChatColor.GRAY + "/orders cancel <order-id>");
+        Messages messages = Messages.get();
+        messages.command(player, "orders.usage-header");
+        messages.send(player, "orders.usage-open");
+        messages.send(player, "orders.usage-create");
+        messages.send(player, "orders.usage-deliver");
+        messages.send(player, "orders.usage-collect");
+        messages.send(player, "orders.usage-cancel");
     }
 
     @Override

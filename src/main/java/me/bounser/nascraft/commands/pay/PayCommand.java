@@ -1,9 +1,9 @@
 package me.bounser.nascraft.commands.pay;
 
 import me.bounser.nascraft.commands.Command;
+import me.bounser.nascraft.config.Messages;
 import me.bounser.nascraft.managers.MoneyManager;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
@@ -25,28 +25,28 @@ public class PayCommand extends Command {
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "Only players can use /pay.");
+            Messages.get().command(sender, "pay.only-player");
             return;
         }
 
         if (!player.hasPermission(PERMISSION)) {
-            player.sendMessage(ChatColor.RED + "You do not have permission to use /pay.");
+            Messages.get().command(player, "pay.no-permission");
             return;
         }
 
         if (args.length != 2) {
-            player.sendMessage(ChatColor.RED + "Usage: /pay <player> <amount>");
+            Messages.get().command(player, "pay.usage");
             return;
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null) {
-            player.sendMessage(ChatColor.RED + "That player is not online.");
+            Messages.get().command(player, "pay.player-offline");
             return;
         }
 
         if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage(ChatColor.RED + "You cannot pay yourself.");
+            Messages.get().command(player, "pay.self");
             return;
         }
 
@@ -54,12 +54,12 @@ public class PayCommand extends Command {
         try {
             amount = Double.parseDouble(args[1]);
         } catch (NumberFormatException exception) {
-            player.sendMessage(ChatColor.RED + "The amount must be a valid number.");
+            Messages.get().command(player, "pay.invalid-number");
             return;
         }
 
         if (!Double.isFinite(amount) || amount <= 0) {
-            player.sendMessage(ChatColor.RED + "The amount must be greater than zero.");
+            Messages.get().command(player, "pay.positive-number");
             return;
         }
 
@@ -67,13 +67,13 @@ public class PayCommand extends Command {
         switch (result) {
             case SUCCESS -> {
                 String formatted = AMOUNT_FORMAT.format(amount);
-                player.sendMessage(ChatColor.GREEN + "You paid " + target.getName() + " $" + formatted + ".");
-                target.sendMessage(ChatColor.GREEN + "You received $" + formatted + " from " + player.getName() + ".");
+                Messages.get().command(player, "pay.sent", "[PLAYER]", target.getName(), "[AMOUNT]", formatted);
+                Messages.get().command(target, "pay.received", "[PLAYER]", player.getName(), "[AMOUNT]", formatted);
             }
-            case INSUFFICIENT_FUNDS -> player.sendMessage(ChatColor.RED + "You do not have enough money.");
-            case ECONOMY_UNAVAILABLE -> player.sendMessage(ChatColor.RED + "The economy provider is currently unavailable.");
-            case WITHDRAW_FAILED -> player.sendMessage(ChatColor.RED + "The payment could not be withdrawn from your account.");
-            case DEPOSIT_FAILED -> player.sendMessage(ChatColor.RED + "The payment failed and your money was refunded.");
+            case INSUFFICIENT_FUNDS -> Messages.get().command(player, "pay.insufficient");
+            case ECONOMY_UNAVAILABLE -> Messages.get().command(player, "pay.economy-unavailable");
+            case WITHDRAW_FAILED -> Messages.get().command(player, "pay.withdraw-failed");
+            case DEPOSIT_FAILED -> Messages.get().command(player, "pay.deposit-failed");
         }
     }
 

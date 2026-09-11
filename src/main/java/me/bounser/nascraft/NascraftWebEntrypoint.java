@@ -1,5 +1,7 @@
 package me.bounser.nascraft;
 
+import me.bounser.nascraft.auction.AuctionHouseCommand;
+import me.bounser.nascraft.auction.AuctionHouseManager;
 import me.bounser.nascraft.commands.orders.OrdersCommand;
 import me.bounser.nascraft.commands.pay.PayCommand;
 import me.bounser.nascraft.market.playerorders.PlayerOrdersManager;
@@ -43,7 +45,13 @@ public class NascraftWebEntrypoint extends Nascraft {
         if (!getConfig().getBoolean("custom-features.pay", true)) {
             getLogger().info("AGF pay system is disabled by custom-features.pay.");
         }
-        if (!getConfig().getBoolean("custom-features.auction-house", true)) {
+
+        if (getConfig().getBoolean("custom-features.auction-house", true)) {
+            AuctionHouseManager auctionHouse = AuctionHouseManager.init(this);
+            getServer().getPluginManager().registerEvents(auctionHouse, this);
+            new AuctionHouseCommand();
+            getLogger().info("AGF Auction House enabled. Commands: /ah, /auctionhouse, /auction");
+        } else {
             getLogger().info("AGF auction house is disabled by custom-features.auction-house.");
         }
 
@@ -60,6 +68,9 @@ public class NascraftWebEntrypoint extends Nascraft {
         getConfig().addDefault("custom-features.pay", true);
         getConfig().addDefault("custom-features.orders", true);
         getConfig().addDefault("custom-features.auction-house", true);
+        getConfig().addDefault("auction-house.default-duration-hours", 24);
+        getConfig().addDefault("auction-house.max-duration-hours", 168);
+        getConfig().addDefault("auction-house.max-listings-per-player", 10);
         getConfig().options().copyDefaults(true);
         saveConfig();
     }

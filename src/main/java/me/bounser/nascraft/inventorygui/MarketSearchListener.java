@@ -2,6 +2,7 @@ package me.bounser.nascraft.inventorygui;
 
 import me.bounser.nascraft.Nascraft;
 import me.bounser.nascraft.config.Config;
+import me.bounser.nascraft.config.Messages;
 import me.bounser.nascraft.input.ChatInputManager;
 import me.bounser.nascraft.market.MarketManager;
 import me.bounser.nascraft.market.unit.Item;
@@ -26,7 +27,6 @@ import java.util.Locale;
 
 public class MarketSearchListener implements Listener {
     private static final int SEARCH_SLOT = 0;
-    private static final String SEARCH_NAME = ChatColor.GOLD + "§lSearch Item";
 
     @EventHandler
     public void onOpen(InventoryOpenEvent event) {
@@ -38,15 +38,16 @@ public class MarketSearchListener implements Listener {
                     || !"main-menu".equals(player.getMetadata("NascraftMenu").get(0).asString())
                     || player.getOpenInventory().getTopInventory().getSize() != Config.getInstance().getMainMenuSize()) return;
 
+            Messages messages = Messages.get();
             ItemStack search = new ItemStack(Material.COMPASS);
             ItemMeta meta = search.getItemMeta();
-            meta.setDisplayName(SEARCH_NAME);
+            meta.setDisplayName(messages.legacy("search.compass.name"));
             meta.setLore(List.of(
-                    ChatColor.GRAY + "Search all market items.",
-                    ChatColor.GRAY + "Results open in a paginated UI",
-                    ChatColor.GRAY + "with item categories and prices.",
+                    messages.legacy("search.compass.lore-1"),
+                    messages.legacy("search.compass.lore-2"),
+                    messages.legacy("search.compass.lore-3"),
                     "",
-                    ChatColor.GREEN + "§lCLICK TO SEARCH"
+                    messages.legacy("search.compass.action")
             ));
             search.setItemMeta(meta);
             player.getOpenInventory().getTopInventory().setItem(SEARCH_SLOT, search);
@@ -92,7 +93,7 @@ public class MarketSearchListener implements Listener {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() != Material.COMPASS || !clicked.hasItemMeta()) return;
         ItemMeta meta = clicked.getItemMeta();
-        if (!meta.hasDisplayName() || !SEARCH_NAME.equals(meta.getDisplayName())) return;
+        if (!meta.hasDisplayName() || !Messages.get().legacy("search.compass.name").equals(meta.getDisplayName())) return;
 
         if (!player.hasMetadata("NascraftMenu")
                 || !"main-menu".equals(player.getMetadata("NascraftMenu").get(0).asString())) return;
@@ -135,17 +136,17 @@ public class MarketSearchListener implements Listener {
     }
 
     private void openSearch(Player player) {
-        ChatInputManager.getInstance().request(player, "Enter the market item to search for.", raw -> {
+        ChatInputManager.getInstance().request(player, Messages.get().text("search.prompt"), raw -> {
             String query = normalize(raw);
             if (query.isBlank()) {
-                player.sendMessage(ChatColor.RED + "Enter an item name.");
+                Messages.get().command(player, "search.empty");
                 reopenMarket(player);
                 return;
             }
 
             List<Item> matches = findMatches(query);
             if (matches.isEmpty()) {
-                player.sendMessage(ChatColor.RED + "No market items found for: " + raw);
+                Messages.get().command(player, "search.no-results", "[QUERY]", raw);
                 reopenMarket(player);
                 return;
             }

@@ -3,6 +3,7 @@ package me.bounser.nascraft.commands.market;
 import me.bounser.nascraft.Nascraft;
 import me.bounser.nascraft.commands.Command;
 import me.bounser.nascraft.commands.pay.PayCommand;
+import me.bounser.nascraft.commands.search.SearchCommand;
 import me.bounser.nascraft.config.lang.Lang;
 import me.bounser.nascraft.config.lang.Message;
 import me.bounser.nascraft.inventorygui.*;
@@ -35,6 +36,7 @@ public class MarketCommand extends Command {
                 "nascraft.market"
         );
         new PayCommand();
+        new SearchCommand();
         Bukkit.getPluginManager().registerEvents(new MarketAvailabilityListener(), Nascraft.getInstance());
     }
 

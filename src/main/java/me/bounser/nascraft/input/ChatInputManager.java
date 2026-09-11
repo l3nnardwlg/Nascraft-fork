@@ -33,6 +33,11 @@ public final class ChatInputManager implements Listener {
         player.sendMessage(ChatColor.GRAY + "Type " + ChatColor.YELLOW + "cancel" + ChatColor.GRAY + " to return without changing anything.");
     }
 
+    /** Clears an outstanding one-shot input without firing its cancel callback. */
+    public void clear(Player player) {
+        sessions.remove(player.getUniqueId());
+    }
+
     @EventHandler(priority = EventPriority.LOWEST)
     public void onChat(AsyncPlayerChatEvent event) {
         Session session = sessions.remove(event.getPlayer().getUniqueId());

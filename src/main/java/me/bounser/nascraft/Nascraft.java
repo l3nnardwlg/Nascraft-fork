@@ -12,6 +12,7 @@ import me.bounser.nascraft.commands.alert.AlertsCommand;
 import me.bounser.nascraft.commands.alert.SetAlertCommand;
 import me.bounser.nascraft.commands.discord.DiscordCommand;
 import me.bounser.nascraft.commands.portfolio.PortfolioCommand;
+import me.bounser.nascraft.commands.search.SearchCommand;
 import me.bounser.nascraft.crossserver.RedisManager;
 import me.bounser.nascraft.database.Database;
 import me.bounser.nascraft.database.BaseDatabase;
@@ -156,6 +157,7 @@ public class Nascraft extends JavaPlugin {
 
         if (config.isCommandEnabled("market")) {
             new MarketCommand();
+            new SearchCommand();
             Bukkit.getPluginManager().registerEvents(new InventoryListener(), this);
             Bukkit.getPluginManager().registerEvents(new MarketSearchListener(), this);
         }

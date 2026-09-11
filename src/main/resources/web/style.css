@@ -11,9 +11,60 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #4b5563 #1f2937; }
-.chart-container { position: relative; width: 100%; }
-#item-price-chart-container { width: 100%; height: 100%; }
-canvas { display: block; max-width: 100%; height: auto; }
+
+/*
+ * Keep chart libraries from participating in their own parent's height
+ * calculation. Lightweight Charts resizes to its container and Chart.js is
+ * responsive, so a flex-grow/100%-height combination can otherwise create a
+ * positive feedback loop where every resize makes the page a little taller.
+ */
+.chart-container {
+    position: relative;
+    width: 100%;
+    min-height: 0 !important;
+    overflow: hidden;
+}
+
+#chart-section .chart-container {
+    flex: 0 0 auto !important;
+    height: clamp(260px, 42vh, 420px) !important;
+    min-height: 260px !important;
+    max-height: 420px !important;
+}
+
+#item-price-chart-container {
+    width: 100%;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow: hidden;
+    contain: size layout paint;
+}
+
+/* The secondary graphs already have 250px Tailwind parents; hard-cap their
+ * drawing surfaces too so responsive canvases/SVGs cannot grow the layout. */
+#cpi-chart {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 250px !important;
+}
+
+#treemap-container {
+    width: 100%;
+    height: 100% !important;
+    max-height: 250px !important;
+    overflow: hidden;
+    contain: size layout paint;
+}
+
+#treemap-container > svg {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 250px !important;
+}
+
+canvas { display: block; max-width: 100%; }
 .item-selected { border-left: 3px solid #818cf8; padding-left: calc(0.5rem - 3px); transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; }
 #item-list li:not(.item-selected) { transition: background-color 0.2s ease-in-out; }
 #item-list li:not(.item-selected):hover { background-color: #1f2937; cursor: pointer; }

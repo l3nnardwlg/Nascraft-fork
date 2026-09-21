@@ -239,6 +239,8 @@
         <div id="nav-tabs" class="flex border-b border-gray-800 mb-4 text-xs font-semibold gap-1">
             <button id="tab-market" class="flex-1 pb-2 border-b-2 border-indigo-500 text-white text-center">Market</button>
             <button id="tab-portfolio" class="flex-1 pb-2 border-b-2 border-transparent text-gray-500 hover:text-gray-300 text-center hidden">Portfolio</button>
+            <button id="tab-profile" class="flex-1 pb-2 border-b-2 border-transparent text-gray-500 hover:text-gray-300 text-center hidden">Profile</button>
+            <button id="tab-settings" class="flex-1 pb-2 border-b-2 border-transparent text-gray-500 hover:text-gray-300 text-center hidden">Settings</button>
         </div>
 
         <div class="mb-4 relative">
@@ -475,6 +477,85 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="profile-view" class="hidden flex flex-col gap-4 sm:gap-6 flex-1">
+            <div class="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-xl">
+                <div class="flex flex-col md:flex-row md:items-center gap-5">
+                    <img id="profile-head" src="" alt="Minecraft head" class="w-24 h-24 rounded-xl bg-gray-900 ring-2 ring-indigo-500/40 shadow-xl">
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Player profile</p>
+                        <h2 id="profile-username" class="text-3xl font-bold text-white truncate">Player</h2>
+                        <p id="profile-uuid" class="mt-1 text-xs font-mono text-gray-400 break-all"></p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+                    <div class="profile-stat"><span>Balance</span><strong id="profile-balance">$0.00</strong></div>
+                    <div class="profile-stat"><span>Portfolio value</span><strong id="profile-worth">$0.00</strong></div>
+                    <div class="profile-stat"><span>Recent trades</span><strong id="profile-trades">0</strong></div>
+                    <div class="profile-stat"><span>Unlocked slots</span><strong id="profile-slots">0 / 27</strong></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+                <section class="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-xl">
+                    <h3 class="text-lg font-semibold text-white mb-4">Account</h3>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-center justify-between gap-4 border-b border-gray-700/60 pb-3">
+                            <span class="text-gray-400">Minecraft account</span>
+                            <span id="profile-account-name" class="font-semibold text-gray-100"></span>
+                        </div>
+                        <div class="flex items-center justify-between gap-4 border-b border-gray-700/60 pb-3">
+                            <span class="text-gray-400">Web session</span>
+                            <span class="inline-flex items-center gap-2 text-emerald-300"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>Active</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-gray-400">Authentication</span>
+                            <span class="text-gray-200">In-game login code</span>
+                        </div>
+                    </div>
+                </section>
+                <section class="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-xl">
+                    <h3 class="text-lg font-semibold text-white mb-4">Activity snapshot</h3>
+                    <div id="profile-recent-activity" class="space-y-2 text-sm text-gray-300">
+                        <p class="text-gray-500 italic">No recent trades.</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div id="settings-view" class="hidden flex flex-col gap-4 sm:gap-6 flex-1">
+            <div class="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-xl">
+                <div class="flex items-start justify-between gap-4 mb-6">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Web preferences</p>
+                        <h2 class="text-2xl font-bold text-white">Settings</h2>
+                        <p class="text-sm text-gray-400 mt-1">These preferences are stored in this browser.</p>
+                    </div>
+                    <button id="settings-reset" class="text-xs px-3 py-2 rounded-md border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500">Reset</button>
+                </div>
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <label class="settings-card">
+                        <div><strong>Compact market list</strong><span>Use tighter spacing in the item sidebar.</span></div>
+                        <input id="setting-compact" type="checkbox" class="settings-toggle">
+                    </label>
+                    <label class="settings-card">
+                        <div><strong>Live market updates</strong><span>Refresh prices automatically every few seconds.</span></div>
+                        <input id="setting-live-updates" type="checkbox" class="settings-toggle" checked>
+                    </label>
+                    <label class="settings-card">
+                        <div><strong>Reduced motion</strong><span>Disable price flashes and most UI animations.</span></div>
+                        <input id="setting-reduced-motion" type="checkbox" class="settings-toggle">
+                    </label>
+                    <label class="settings-card">
+                        <div><strong>Remember chart options</strong><span>Persist inflation and logarithmic scale choices.</span></div>
+                        <input id="setting-remember-chart" type="checkbox" class="settings-toggle" checked>
+                    </label>
+                </div>
+                <div class="mt-6 pt-6 border-t border-gray-700/60">
+                    <button id="settings-logout" class="bg-red-600/90 hover:bg-red-600 text-white font-semibold text-sm px-4 py-2.5 rounded-md">Sign out of web session</button>
                 </div>
             </div>
         </div>

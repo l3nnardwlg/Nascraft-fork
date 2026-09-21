@@ -133,3 +133,63 @@ aside > div.flex.items-center.justify-between:first-of-type > :first-child span 
 #auth-controls > div {
     justify-content: flex-end !important;
 }
+
+
+/* Profile & settings */
+.profile-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1rem;
+    border: 1px solid rgba(75, 85, 99, 0.55);
+    border-radius: 0.75rem;
+    background: rgba(17, 24, 39, 0.55);
+}
+.profile-stat span { color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.profile-stat strong { color: #f9fafb; font-size: 1.35rem; }
+
+.settings-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(75, 85, 99, 0.55);
+    border-radius: 0.75rem;
+    background: rgba(17, 24, 39, 0.55);
+    cursor: pointer;
+}
+.settings-card strong { display: block; color: #f9fafb; font-size: 0.9rem; }
+.settings-card span { display: block; color: #9ca3af; font-size: 0.75rem; margin-top: 0.2rem; line-height: 1.35; }
+
+.settings-toggle {
+    width: 2.5rem;
+    height: 1.35rem;
+    appearance: none;
+    border-radius: 999px;
+    background: #374151;
+    position: relative;
+    transition: background-color 0.2s ease;
+    flex: 0 0 auto;
+}
+.settings-toggle::after {
+    content: '';
+    position: absolute;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    background: #f9fafb;
+    top: 0.175rem;
+    left: 0.2rem;
+    transition: transform 0.2s ease;
+}
+.settings-toggle:checked { background: #4f46e5; }
+.settings-toggle:checked::after { transform: translateX(1.1rem); }
+
+body.nascraft-compact #item-list li { padding-top: 0.3rem !important; padding-bottom: 0.3rem !important; }
+body.nascraft-reduced-motion *, body.nascraft-reduced-motion *::before, body.nascraft-reduced-motion *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+}

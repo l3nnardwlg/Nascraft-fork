@@ -1127,6 +1127,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const logoutBtn = document.getElementById('logout-btn');
             if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
             if (tabPortfolio) tabPortfolio.classList.remove('hidden');
+            if (tabProfile) tabProfile.classList.remove('hidden');
+            if (tabSettings) tabSettings.classList.remove('hidden');
+            renderProfile();
         } else {
             authControls.innerHTML = `
                 <button id="login-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-1.5 px-3 rounded-md transition duration-150 ease-in-out">
@@ -1268,6 +1271,99 @@ document.addEventListener('DOMContentLoaded', () => {
             authState.loggedIn = false;
             updateAuthUI();
         }
+    }
+
+
+    const SETTINGS_KEY = 'nascraft_web_settings_v1';
+    const defaultWebSettings = { compact: false, liveUpdates: true, reducedMotion: false, rememberChart: true };
+    let webSettings = loadWebSettings();
+
+    function loadWebSettings() {
+        try { return { ...defaultWebSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; }
+        catch (_) { return { ...defaultWebSettings }; }
+    }
+
+    function saveWebSettings() {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(webSettings));
+        applyWebSettings();
+    }
+
+    function applyWebSettings() {
+        document.body.classList.toggle('nascraft-compact', !!webSettings.compact);
+        document.body.classList.toggle('nascraft-reduced-motion', !!webSettings.reducedMotion);
+        if (settingCompact) settingCompact.checked = !!webSettings.compact;
+        if (settingLiveUpdates) settingLiveUpdates.checked = !!webSettings.liveUpdates;
+        if (settingReducedMotion) settingReducedMotion.checked = !!webSettings.reducedMotion;
+        if (settingRememberChart) settingRememberChart.checked = !!webSettings.rememberChart;
+
+        if (pollingIntervalId) {
+            clearInterval(pollingIntervalId);
+            pollingIntervalId = null;
+        }
+        if (webSettings.liveUpdates) pollingIntervalId = setInterval(pollData, POLLING_INTERVAL);
+    }
+
+    async function renderProfile() {
+        if (!authState.loggedIn) return;
+        if (profileUsername) profileUsername.textContent = authState.username || 'Player';
+        if (profileUuid) profileUuid.textContent = authState.uuid || '';
+        if (profileAccountName) profileAccountName.textContent = authState.username || 'Player';
+        if (profileHead) profileHead.src = 'https://mc-heads.net/head/' + encodeURIComponent(authState.username || '') + '/96';
+
+        try {
+            const [portfolio, trades] = await Promise.all([
+                fetchData('/me/portfolio').catch(() => null),
+                fetchData('/me/trades').catch(() => [])
+            ]);
+            if (portfolio) {
+                if (profileBalance) profileBalance.textContent = formatCurrency(portfolio.balance, '$0.00');
+                if (profileWorth) profileWorth.textContent = formatCurrency(portfolio.portfolioValue, '$0.00');
+                if (profileSlots) profileSlots.textContent = `${portfolio.unlockedSlots ?? 0} / ${portfolio.maximumSlots ?? 27}`;
+            }
+            if (profileTrades) profileTrades.textContent = Array.isArray(trades) ? trades.length : 0;
+            if (profileRecentActivity) {
+                if (!Array.isArray(trades) || trades.length === 0) {
+                    profileRecentActivity.innerHTML = '<p class="text-gray-500 italic">No recent trades.</p>';
+                } else {
+                    profileRecentActivity.innerHTML = trades.slice(0, 5).map(t => {
+                        const action = t.buy ? 'Bought' : 'Sold';
+                        const cls = t.buy ? 'text-emerald-300' : 'text-red-300';
+                        return `<div class="flex items-center justify-between gap-3 rounded-md bg-gray-900/50 border border-gray-700/40 px-3 py-2">
+                            <span class="${cls} font-semibold">${action} ${t.amount}× ${t.displayName}</span>
+                            <span class="text-gray-400 text-xs">${formatCurrency(t.value)}</span>
+                        </div>`;
+                    }).join('');
+                }
+            }
+        } catch (e) {
+            console.error('Failed to render profile', e);
+        }
+    }
+
+    function wireSettings() {
+        applyWebSettings();
+        if (webSettings.rememberChart) {
+            inflationCheckbox.checked = localStorage.getItem('nascraft_chart_inflation') === 'true';
+            logScaleCheckbox.checked = localStorage.getItem('nascraft_chart_log') === 'true';
+        }
+        if (settingCompact) settingCompact.addEventListener('change', () => { webSettings.compact = settingCompact.checked; saveWebSettings(); });
+        if (settingLiveUpdates) settingLiveUpdates.addEventListener('change', () => { webSettings.liveUpdates = settingLiveUpdates.checked; saveWebSettings(); });
+        if (settingReducedMotion) settingReducedMotion.addEventListener('change', () => { webSettings.reducedMotion = settingReducedMotion.checked; saveWebSettings(); });
+        if (settingRememberChart) settingRememberChart.addEventListener('change', () => { webSettings.rememberChart = settingRememberChart.checked; saveWebSettings(); });
+        if (settingsReset) settingsReset.addEventListener('click', () => {
+            webSettings = { ...defaultWebSettings };
+            localStorage.removeItem('nascraft_chart_inflation');
+            localStorage.removeItem('nascraft_chart_log');
+            saveWebSettings();
+            showToast('Settings reset.', 'success');
+        });
+        if (settingsLogout) settingsLogout.addEventListener('click', handleLogout);
+        inflationCheckbox.addEventListener('change', () => {
+            if (webSettings.rememberChart) localStorage.setItem('nascraft_chart_inflation', String(inflationCheckbox.checked));
+        });
+        logScaleCheckbox.addEventListener('change', () => {
+            if (webSettings.rememberChart) localStorage.setItem('nascraft_chart_log', String(logScaleCheckbox.checked));
+        });
     }
 
     function switchTab(tab) {
